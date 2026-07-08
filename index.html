@@ -1,0 +1,1865 @@
+<!DOCTYPE html>
+<html lang="ja"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1280">
+<title>従業員分布状況視覚化ツール</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Noto+Sans+JP:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://unpkg.com/@sgratzl/chartjs-chart-boxplot@4.3.4/build/index.umd.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <header id="app-header">
+    <div class="header-brand">
+      <div class="header-brand-icon"><i class="fa-solid fa-people-group"></i></div>
+      <span>従業員分布状況視覚化</span>
+    </div>
+    <nav class="header-nav">
+      <button class="nav-btn" data-view="dashboard"><i class="fa-solid fa-gauge-high"></i>ダッシュボード</button>
+      <button class="nav-btn active" data-view="list"><i class="fa-solid fa-list-ul"></i>従業員管理</button>
+      <button class="nav-btn" data-view="distribution"><i class="fa-solid fa-table-cells-large"></i>分布表示</button>
+      <button class="nav-btn" data-view="heatmap"><i class="fa-solid fa-chart-simple"></i>集計・グラフ</button>
+      <button class="nav-btn" data-view="map"><i class="fa-solid fa-map-location-dot"></i>地図</button>
+      <div class="hdr-nav-sep"></div>
+      <button class="nav-btn nav-btn-masters" data-view="masters"><i class="fa-solid fa-sliders"></i>マスタ管理</button>
+    </nav>
+    <div class="hdr-action-grp">
+      <div class="header-badge" id="header-cnt">0名登録</div>
+      <button class="hdr-btn" id="btn-export-csv" title="一覧データをCSVで出力"><i class="fa-solid fa-file-csv"></i>CSV出力</button>
+      <div class="hdr-vdiv"></div>
+      <button class="hdr-btn" id="btn-export-json" title="バックアップ(ZIP)"><i class="fa-solid fa-file-zipper"></i>バックアップ</button>
+      <button class="hdr-btn" id="btn-import-json" title="復元/インポート"><i class="fa-solid fa-box-open"></i>復元</button>
+      <div class="hdr-vdiv"></div>
+      <button class="hdr-btn-danger" id="btn-clear-all" title="すべてのデータを削除します"><i class="fa-solid fa-trash-can"></i></button>
+      <div class="hdr-vdiv"></div>
+      <button class="hdr-btn-help" id="btn-theme-toggle" title="テーマ切替"><i class="fa-solid fa-moon"></i></button>
+      <button class="hdr-btn-help" id="btn-help" title="使い方"><i class="fa-solid fa-circle-question"></i></button>
+    </div>
+    <input type="file" id="import-json-input" accept=".json,.zip" style="display:none">
+  </header>
+
+  <div id="app-body">
+  <!-- ▼ 左サイドバーフィルター -->
+<div class="filter-sidebar" id="global-filter-panel">
+
+  <!-- 折りたたみ時に表示するストリップ -->
+  <div class="fsb-strip" id="btn-fsb-expand" title="フィルターを開く">
+    <i class="fa-solid fa-filter fsb-strip-icon"></i>
+    <span class="fsb-strip-badge" id="fsb-strip-cnt" style="display:none">0</span>
+    <i class="fa-solid fa-chevron-right fsb-strip-chevron"></i>
+  </div>
+
+  <!-- 展開時のパネル本体 -->
+  <div class="fsb-panel">
+    <!-- ─── ヘッダー ─── -->
+    <div class="gfp-head">
+      <div class="gfp-head-title">
+        <i class="fa-solid fa-filter"></i>
+        <span>共通フィルター</span>
+        <span class="gfp-head-badge" id="global-filter-badge" style="display:none">0</span>
+      </div>
+      <div class="gfp-head-acts">
+        <button type="button" class="gfp-reset-btn" id="btn-gfp-reset" title="フィルターをすべてリセット">
+          <i class="fa-solid fa-rotate-left"></i>リセット
+        </button>
+        <button type="button" class="gfp-close-btn" id="btn-gfp-close" title="折りたたむ">
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- ─── フィルター本体（スクロール領域） ─── -->
+    <div class="gfp-body" id="gfp-body">
+      <!-- renderGlobalFilterPanel() で動的生成 -->
+    </div>
+
+    <!-- ─── 適用中フィルター フッター ─── -->
+    <div class="gfp-active-bar" id="gfp-active-bar">
+      <div class="gfp-active-bar-inner">
+        <span class="gfp-active-bar-label">
+          <i class="fa-solid fa-eye gfp-active-bar-icon" id="gfp-active-bar-icon"></i>
+          <span id="gfp-active-count-lbl">すべて表示中</span>
+        </span>
+        <button class="gfp-active-bar-toggle" id="btn-gfp-chips-toggle" title="適用中フィルターを展開">
+          <i class="fa-solid fa-chevron-up" id="gfp-chips-chevron"></i>
+        </button>
+      </div>
+      <div class="gfp-active-chips" id="gfp-active-chips"></div>
+    </div>
+  </div>
+
+</div>
+<!-- ▲ 左サイドバーフィルター -->
+  <main id="app-main">
+
+    <!-- ── DASHBOARD VIEW ── -->
+    <div id="view-dashboard" class="view"></div>
+
+    <!-- ── LIST VIEW ── -->
+    <div id="view-list" class="view active">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <div class="search-wrap">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="ls-search" placeholder="氏名・ふりがな・メモ・所属・役職などで検索…">
+            <button type="button" id="btn-ls-marker-toggle" class="search-marker-btn" title="検索マーカーをON/OFF"><i class="fa-solid fa-highlighter"></i></button>
+          </div>
+        </div>
+        <div class="toolbar-right">
+          <span id="ls-cnt" style="font-size:12px;color:var(--c-text-3)"></span>
+          <!-- Duplicate check toggle -->
+          <button class="btn btn-ghost btn-dup-list" id="btn-dup-list" title="従業員データの重複・表記ゆれを確認し統合します">
+            <i class="fa-solid fa-users-viewfinder"></i>重複統合
+            <span class="dup-list-badge" id="dup-list-badge" style="display:none"></span>
+          </button>
+          <!-- Column settings -->
+          <div class="col-settings-wrap" id="col-settings-wrap">
+            <button class="btn btn-ghost" id="btn-col-settings" title="表示列の設定">
+              <i class="fa-solid fa-table-columns"></i>列設定
+            </button>
+            <div class="col-panel" id="col-panel">
+              <div class="col-panel-head">
+                <span>表示列の設定</span>
+                <button class="col-panel-head-reset" id="btn-col-reset">リセット</button>
+              </div>
+              <div class="col-panel-list" id="col-panel-list"></div>
+            </div>
+          </div>
+          <button class="btn btn-primary" id="btn-add-emp">
+            <i class="fa-solid fa-user-plus"></i>従業員追加
+          </button>
+        </div>
+      </div>
+      <div class="list-scroll">
+        <table class="list-table">
+          <thead><tr id="ls-thead-row"></tr></thead>
+          <tbody id="ls-tbody"></tbody>
+        </table>
+        <div id="ls-empty" class="empty-state" style="display:none">
+          <i class="fa-solid fa-users-slash"></i>
+          <h3>従業員が登録されていません</h3>
+          <p>「従業員追加」ボタンから登録を開始してください</p>
+        </div>
+        <div style="height:80px" aria-hidden="true"></div>
+      </div>
+    </div>
+
+    <!-- ── DISTRIBUTION VIEW ── -->
+    <div id="view-distribution" class="view">
+      <!-- 統合ツールバー -->
+      <div class="toolbar" id="dist-toolbar">
+        <div class="toolbar-left">
+          
+          <!-- 縦軸 -->
+          <div class="tb-group">
+            <span class="lbl-sm">縦軸</span>
+            <div class="yaxis-picker-wrap" id="yaxis-picker-wrap">
+              <button class="btn-yaxis-picker" id="btn-yaxis-picker" title="縦軸を選択">
+                <i id="yaxis-picker-icon" class="fa-solid fa-calendar-days"></i>
+                <span id="yaxis-picker-label">入社年</span>
+                <i class="fa-solid fa-chevron-down yaxis-picker-chevron"></i>
+              </button>
+              <div class="yaxis-picker-panel" id="yaxis-picker-panel"></div>
+            </div>
+            <button class="btn-sort-dir" id="btn-yaxis-dir" title="並び順を切替">
+              <i class="fa-solid fa-arrow-down-wide-short"></i><span id="sort-dir-lbl">降順</span>
+            </button>
+          </div>
+
+          <div class="toolbar-sep"></div>
+
+          <!-- 分離 -->
+          <div class="tb-group">
+            <span class="lbl-sm">分離</span>
+            <select class="sel" id="dist-split-sel">
+              <option value="">なし</option>
+              <option value="attribute">属性</option>
+              <option value="gender">性別</option>
+              <option value="hireType">入社区分</option>
+              <option value="course">職群</option>
+              <option value="status">在籍状況</option>
+              <option value="position">役職</option>
+              <option value="birthMonth">誕生月</option>
+              <option value="zodiac">干支</option>
+              <option value="age_thresh">年齢閾値</option>
+              <option value="years_thresh">在社年閾値</option>
+            </select>
+          </div>
+
+          <!-- 数値閾値スライダー (numeric split 選択時のみ表示) -->
+          <div class="thresh-row" id="thresh-row">
+            <div class="toolbar-sep"></div>
+            <span class="lbl-sm" id="thresh-axis-lbl">閾値</span>
+            <input type="range" class="thresh-slider" id="thresh-slider" min="18" max="65" value="35">
+            <span class="thresh-val-badge" id="thresh-val-badge">35</span>
+          </div>
+
+          <div class="toolbar-sep"></div>
+          
+          <!-- 分布表示カードハイライト検索 -->
+          <div class="tb-group">
+            <div class="search-wrap">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input type="text" id="dist-search" placeholder="氏名・所属・役職などで強調表示...">
+              <button type="button" id="btn-dist-marker-toggle" class="search-marker-btn" title="検索マーカーをON/OFF"><i class="fa-solid fa-highlighter"></i></button>
+            </div>
+          </div>
+
+        </div>
+        <div class="toolbar-right">
+          <span id="dist-stat" style="font-size:12px;color:var(--c-text-3);margin-right:8px"></span>
+
+          <!-- 表示設定 (カード装飾・バッジ表示・空行) -->
+          <div class="dist-settings-wrap" id="dist-settings-wrap">
+            <button class="btn btn-ghost" id="btn-dist-settings" title="表示設定">
+              <i class="fa-solid fa-sliders"></i>表示設定
+            </button>
+            <div class="dist-settings-panel" id="dist-settings-panel">
+              <div class="dsp-head">表示設定</div>
+              <div class="dsp-body">
+                <!-- カード装飾 -->
+                <div class="dsp-section">
+                  <div class="dsp-label">カード装飾（左端ライン色）</div>
+                  <select class="sel" id="sel-card-color" style="width:100%; margin-bottom:6px;">
+                    <option value="attribute">属性</option>
+                    <option value="gender">性別</option>
+                    <option value="status">在籍状況</option>
+                    <option value="hireType">入社区分</option>
+                    <option value="course">職群</option>
+                    <option value="none">なし</option>
+                  </select>
+                  <button class="btn-sc-style is-on" id="btn-sc-style" style="width:100%" title="在籍状況マスタの設定色をカード背景色に連動">
+                    <i class="fa-solid fa-palette"></i>状況色＝カード背景（マスタ連動）
+                  </button>
+                </div>
+                <!-- 写真アイコン -->
+                <div class="dsp-section">
+                  <div class="dsp-label">写真アイコン（カード）</div>
+                  <button class="btn-dsp-toggle is-on" id="btn-toggle-card-avatar" style="width:100%">
+                    <i class="fa-solid fa-image-portrait"></i><span>写真を表示</span>
+                  </button>
+                </div>
+                <!-- ポップアップ設定 -->
+                <div class="dsp-section">
+                  <div class="dsp-label">ホバーポップアップ</div>
+                  <button class="btn-dsp-toggle is-on" id="btn-toggle-popup" style="width:100%; margin-bottom:10px;">
+                    <i class="fa-solid fa-window-restore"></i><span>ポップアップを表示</span>
+                  </button>
+                  <div id="popup-sub-settings">
+                    <div class="dsp-sub-label">サイズ</div>
+                    <div class="rpill-group" id="popup-size-group" style="margin-bottom:8px;">
+                      <label class="rpill"><input type="radio" name="popup-size" value="sm"><span class="rpill-lbl">S</span></label>
+                      <label class="rpill"><input type="radio" name="popup-size" value="md"><span class="rpill-lbl">M</span></label>
+                      <label class="rpill"><input type="radio" name="popup-size" value="lg"><span class="rpill-lbl">L</span></label>
+                    </div>
+                    <div class="dsp-sub-label">表示内容</div>
+                    <div class="bfp-body" style="padding:4px 4px 2px;">
+                      <label class="bfp-row btog-popup is-on" data-popup="showAvatar">
+                        <input type="checkbox" checked>
+                        <span class="bfp-check"><i class="fa-solid fa-check"></i></span>
+                        <span class="bfp-icon"><i class="fa-solid fa-image-portrait"></i></span>
+                        <span class="bfp-label">写真</span>
+                      </label>
+                      <label class="bfp-row btog-popup is-on" data-popup="showBadges">
+                        <input type="checkbox" checked>
+                        <span class="bfp-check"><i class="fa-solid fa-check"></i></span>
+                        <span class="bfp-icon"><i class="fa-solid fa-tags"></i></span>
+                        <span class="bfp-label">バッジ</span>
+                      </label>
+                      <label class="bfp-row btog-popup is-on" data-popup="showHireYear">
+                        <input type="checkbox" checked>
+                        <span class="bfp-check"><i class="fa-solid fa-check"></i></span>
+                        <span class="bfp-icon"><i class="fa-solid fa-calendar-days"></i></span>
+                        <span class="bfp-label">入社年・在社年数</span>
+                      </label>
+                      <label class="bfp-row btog-popup" data-popup="showMemo">
+                        <input type="checkbox">
+                        <span class="bfp-check"><i class="fa-solid fa-check"></i></span>
+                        <span class="bfp-icon"><i class="fa-solid fa-note-sticky"></i></span>
+                        <span class="bfp-label">メモ</span>
+                      </label>
+                      <label class="bfp-row btog-popup" data-popup="showHistory">
+                        <input type="checkbox">
+                        <span class="bfp-check"><i class="fa-solid fa-check"></i></span>
+                        <span class="bfp-icon"><i class="fa-solid fa-clock-rotate-left"></i></span>
+                        <span class="bfp-label">異動履歴</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <!-- 和暦表示 -->
+                <div class="dsp-section">
+                  <div class="dsp-label">軸ラベル（数値軸）</div>
+                  <button class="btn-dsp-toggle" id="btn-toggle-wareki" style="width:100%">
+                    <i class="fa-solid fa-torii-gate"></i><span>和暦を表示</span>
+                  </button>
+                </div>
+                <!-- 表示切替（空行） -->
+                <div class="dsp-section">
+                  <div class="dsp-label">行の表示</div>
+                  <button class="btn-empty-rows" id="btn-show-empty-rows" style="width:100%">
+                    <i class="fa-solid fa-table-rows"></i><span>空行を表示</span>
+                  </button>
+                </div>
+                <!-- バッジ表示 -->
+                <div class="dsp-section">
+                  <div class="dsp-label" style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>バッジ表示</span>
+                    <div class="bfp-links">
+                      <button class="bfp-link" id="bfp-all">全ON</button>
+                      <span style="color:var(--c-border-d); font-size:10px;">|</span>
+                      <button class="bfp-link" id="bfp-none">全OFF</button>
+                    </div>
+                  </div>
+                  <div class="bfp-body" id="btog-group">
+                    <label class="bfp-row btog is-on" data-badge="gender">
+                      <input type="checkbox" checked="">
+                      <span class="bfp-check"><i class="fa-solid fa-check"></i></span>
+                      <span class="bfp-icon"><i class="fa-solid fa-venus-mars"></i></span>
+                      <span class="bfp-label">性別</span>
+                    </label>
+                    <label class="bfp-row btog is-on" data-badge="attribute">
+                      <input type="checkbox" checked="">
+                      <span class="bfp-check"><i class="fa-solid fa-check"></i></span>
+                      <span class="bfp-icon"><i class="fa-solid fa-map-location-dot"></i></span>
+                      <span class="bfp-label">属性</span>
+                    </label>
+                    <label class="bfp-row btog is-on" data-badge="status">
+                      <input type="checkbox" checked="">
+                      <span class="bfp-check"><i class="fa-solid fa-check"></i></span>
+                      <span class="bfp-icon"><i class="fa-solid fa-circle-dot"></i></span>
+                      <span class="bfp-label">在籍状況</span>
+                    </label>
+                    <label class="bfp-row btog is-on" data-badge="hireType">
+                      <input type="checkbox" checked="">
+                      <span class="bfp-check"><i class="fa-solid fa-check"></i></span>
+                      <span class="bfp-icon"><i class="fa-solid fa-door-open"></i></span>
+                      <span class="bfp-label">入社区分</span>
+                    </label>
+                    <label class="bfp-row btog is-on" data-badge="course">
+                      <input type="checkbox" checked="">
+                      <span class="bfp-check"><i class="fa-solid fa-check"></i></span>
+                      <span class="bfp-icon"><i class="fa-solid fa-user-gear"></i></span>
+                      <span class="bfp-label">職群</span>
+                    </label>
+                    <label class="bfp-row btog is-on" data-badge="age">
+                      <input type="checkbox" checked="">
+                      <span class="bfp-check"><i class="fa-solid fa-check"></i></span>
+                      <span class="bfp-icon"><i class="fa-solid fa-person"></i></span>
+                      <span class="bfp-label">年齢</span>
+                    </label>
+                    <label class="bfp-row btog is-on" data-badge="years">
+                      <input type="checkbox" checked="">
+                      <span class="bfp-check"><i class="fa-solid fa-check"></i></span>
+                      <span class="bfp-icon"><i class="fa-solid fa-briefcase"></i></span>
+                      <span class="bfp-label">在社年数</span>
+                    </label>
+                    <label class="bfp-row btog" data-badge="adjHire">
+                      <input type="checkbox">
+                      <span class="bfp-check"><i class="fa-solid fa-check"></i></span>
+                      <span class="bfp-icon"><i class="fa-solid fa-scale-balanced"></i></span>
+                      <span class="bfp-label">換算入社年</span>
+                    </label>
+                    <label class="bfp-row btog" data-badge="birthMonth">
+                      <input type="checkbox">
+                      <span class="bfp-check"><i class="fa-solid fa-check"></i></span>
+                      <span class="bfp-icon"><i class="fa-solid fa-cake-candles"></i></span>
+                      <span class="bfp-label">誕生月</span>
+                    </label>
+                    <label class="bfp-row btog" data-badge="zodiac">
+                      <input type="checkbox">
+                      <span class="bfp-check"><i class="fa-solid fa-check"></i></span>
+                      <span class="bfp-icon"><i class="fa-solid fa-dragon"></i></span>
+                      <span class="bfp-label">干支</span>
+                    </label>
+                    <label class="bfp-row btog" data-badge="orgExp">
+                      <input type="checkbox">
+                      <span class="bfp-check"><i class="fa-solid fa-check"></i></span>
+                      <span class="bfp-icon"><i class="fa-solid fa-sitemap"></i></span>
+                      <span class="bfp-label">部門経験年数</span>
+                    </label>
+                    <label class="bfp-row btog" data-badge="posExp">
+                      <input type="checkbox">
+                      <span class="bfp-check"><i class="fa-solid fa-check"></i></span>
+                      <span class="bfp-icon"><i class="fa-solid fa-user-tie"></i></span>
+                      <span class="bfp-label">役職経験年数</span>
+                    </label>
+                    <label class="bfp-row btog is-on" data-badge="tags">
+                      <input type="checkbox" checked="">
+                      <span class="bfp-check"><i class="fa-solid fa-check"></i></span>
+                      <span class="bfp-icon"><i class="fa-solid fa-tag"></i></span>
+                      <span class="bfp-label">タグ</span>
+                    </label>
+                    <div class="bfp-sep"></div>
+                    <label class="bfp-row btog" data-badge="company">
+                      <input type="checkbox">
+                      <span class="bfp-check"><i class="fa-solid fa-check"></i></span>
+                      <span class="bfp-icon"><i class="fa-solid fa-building"></i></span>
+                      <span class="bfp-label">会社</span>
+                    </label>
+                    <label class="bfp-row btog" data-badge="education">
+                      <input type="checkbox">
+                      <span class="bfp-check"><i class="fa-solid fa-check"></i></span>
+                      <span class="bfp-icon"><i class="fa-solid fa-graduation-cap"></i></span>
+                      <span class="bfp-label">学歴</span>
+                    </label>
+                    <label class="bfp-row btog" data-badge="school">
+                      <input type="checkbox">
+                      <span class="bfp-check"><i class="fa-solid fa-check"></i></span>
+                      <span class="bfp-icon"><i class="fa-solid fa-school"></i></span>
+                      <span class="bfp-label">学校名</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="toolbar-sep"></div>
+
+          <button class="btn btn-ghost" id="btn-dist-capture" title="現在の分布表示を画像出力">
+            <i class="fa-solid fa-camera"></i>画像出力
+          </button>
+        </div>
+      </div>
+
+      <!-- 分布データ表示領域 -->
+      <div class="dist-scroll" id="dist-scroll"></div>
+
+      <!-- 従業員追加 FAB（分布表示ビュー内） -->
+      <button class="dist-fab-add" id="btn-dist-add-emp" title="従業員を新規登録">
+        <i class="fa-solid fa-user-plus"></i>
+        <span>従業員追加</span>
+      </button>
+    </div>
+
+    <!-- ── HEATMAP VIEW ── -->
+    <div id="view-heatmap" class="view">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <button class="btn btn-primary" id="btn-hm-add-panel">
+            <i class="fa-solid fa-plus"></i>グラフを追加
+          </button>
+          <span id="hm-panel-limit-msg" style="font-size:11px;color:var(--c-text-3);margin-left:8px;display:none;">※最大3つまで</span>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn btn-ghost" id="btn-hm-capture" title="現在のグラフを画像出力">
+            <i class="fa-solid fa-camera"></i>画像出力
+          </button>
+          <span id="hm-stat" style="font-size:12px;color:var(--c-text-3)"></span>
+        </div>
+      </div>
+
+      <!-- グラフ個別詳細設定ポップオーバー -->
+      <div class="hm-panel-options-popover" id="hm-panel-options-popover" style="display:none;">
+        <div class="dsp-head">
+          <i class="fa-solid fa-sliders" style="margin-right:6px"></i>詳細設定
+        </div>
+        <div class="dsp-body">
+          <div class="dsp-section" id="pop-hm-range-section">
+            <div class="dsp-label">値軸 範囲設定</div>
+            <div class="hm-range-mode-group" style="margin-bottom:8px">
+              <button class="hm-range-mode-btn" data-mode="auto"><i class="fa-solid fa-wand-sparkles"></i>自動</button>
+              <button class="hm-range-mode-btn" data-mode="zero"><i class="fa-solid fa-arrow-down-to-line"></i>0基準</button>
+              <button class="hm-range-mode-btn" data-mode="manual"><i class="fa-solid fa-pen-to-square"></i>手動</button>
+            </div>
+            <div id="pop-hm-range-manual-row" style="display:none;">
+              <div class="hm-range-minmax">
+                <div class="hm-range-input-group">
+                  <span class="hm-range-lbl">MIN</span>
+                  <input type="number" id="pop-hm-range-min" class="hm-range-input" placeholder="自動">
+                </div>
+                <span class="hm-range-sep">–</span>
+                <div class="hm-range-input-group">
+                  <span class="hm-range-lbl">MAX</span>
+                  <input type="number" id="pop-hm-range-max" class="hm-range-input" placeholder="自動">
+                </div>
+              </div>
+            </div>
+            <div id="pop-hm-bin-row" style="display:none; margin-top:8px;">
+              <div class="hm-range-input-group">
+                <span class="hm-range-lbl">分割数（ヒストグラム）</span>
+                <input type="number" id="pop-hm-num-bins" class="hm-range-input" placeholder="自動 (例: 10)" min="1">
+              </div>
+            </div>
+            <label class="hm-range-nice-label" style="margin-top:6px">
+              <input type="checkbox" id="pop-hm-range-nice-chk">
+              <span>キリの良い目盛り（箱ひげ図等）</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="hm-scroll" id="hm-scroll">
+        <div id="hm-container"></div>
+      </div>
+    </div>
+
+
+    <!-- ── MAP VIEW ── -->
+    <div id="view-map" class="view">
+      <div class="map-toolbar">
+        <div class="map-toolbar-left">
+          <span class="map-toolbar-title"><i class="fa-solid fa-map-location-dot"></i>住所マップ</span>
+          <div class="map-filter-group">
+            <button class="map-filter-btn is-active" id="map-filter-company" data-key="company">
+              <span class="map-filter-dot" style="background:#10B981"></span>会社
+              <span class="map-filter-cnt" id="map-stat-company">0</span>件
+            </button>
+            <button class="map-filter-btn is-active" id="map-filter-school" data-key="school">
+              <span class="map-filter-dot" style="background:#F59E0B"></span>学校
+              <span class="map-filter-cnt" id="map-stat-school">0</span>件
+            </button>
+          </div>
+        </div>
+        <div class="map-toolbar-right">
+          <button class="btn btn-ghost btn-sm" id="btn-map-refresh" title="ピンを再取得">
+            <i class="fa-solid fa-rotate"></i>再読み込み
+          </button>
+        </div>
+      </div>
+      <div class="map-progress-wrap" id="map-progress-wrap" style="display:none">
+        <div class="map-progress-bar-track">
+          <div class="map-progress-bar" id="map-progress-bar"></div>
+        </div>
+        <span class="map-progress-lbl" id="map-progress-lbl">ジオコーディング中…</span>
+      </div>
+      <div class="map-body">
+        <div id="map-canvas"></div>
+        <div class="map-empty" id="map-empty" style="display:none">
+          <i class="fa-solid fa-map-location-dot"></i>
+          <p>住所データが登録されていません</p>
+          <p class="map-empty-sub">会社・学校マスタに住所を登録してください。</p>
+        </div>
+        <div class="map-legend">
+          <div class="map-legend-title">凡例</div>
+          <div class="map-legend-item"><span class="map-legend-dot" style="background:#10B981"></span>会社・事業所</div>
+          <div class="map-legend-item"><span class="map-legend-dot" style="background:#F59E0B"></span>学校・教育機関</div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ── MASTERS VIEW ── -->
+    <div id="view-masters" class="view">
+      <div class="master-view-layout">
+        <!-- 左サイドバー：マスタ種別 -->
+        <div class="master-sidebar">
+          <div class="master-sidebar-title">マスタ種別</div>
+          <div class="master-sidebar-group">
+            <div class="master-sidebar-group-label">分類マスタ</div>
+            <button class="master-tab" data-master="status">
+              <i class="fa-solid fa-circle-dot"></i>在籍状況
+            </button>
+            <button class="master-tab" data-master="attribute">
+              <i class="fa-solid fa-map-location-dot"></i>属性
+            </button>
+            <button class="master-tab" data-master="hireType">
+              <i class="fa-solid fa-door-open"></i>入社区分
+            </button>
+            <button class="master-tab" data-master="course">
+              <i class="fa-solid fa-user-gear"></i>職群マスタ
+            </button>
+          </div>
+          <div class="master-sidebar-group">
+            <div class="master-sidebar-group-label">役職マスタ</div>
+            <button class="master-tab" data-master="position">
+              <i class="fa-solid fa-user-tie"></i>役職
+            </button>
+          </div>
+          <div class="master-sidebar-group">
+            <div class="master-sidebar-group-label">階層マスタ</div>
+            <button class="master-tab is-active" data-master="company" id="mtab-company">
+              <i class="fa-solid fa-building"></i>会社マスタ
+            </button>
+            <button class="master-tab" data-master="school" id="mtab-school">
+              <i class="fa-solid fa-graduation-cap"></i>学校マスタ
+            </button>
+          </div>
+          <div class="master-sidebar-group">
+            <div class="master-sidebar-group-label">タグ</div>
+            <button class="master-tab" data-master="tag" id="mtab-tag">
+              <i class="fa-solid fa-tags"></i>タグマスタ
+            </button>
+          </div>
+        </div>
+        <!-- 右コンテンツ：ツリー表示 -->
+        <div class="master-content">
+          <div class="master-content-head">
+            <div class="master-content-title" id="master-content-title">
+              <i class="fa-solid fa-graduation-cap"></i><span>学校マスタ</span>
+              <span id="master-cnt-badge" style="font-size:11px;color:var(--c-text-3);font-weight:400;margin-left:4px"></span>
+            </div>
+            <div class="master-head-right">
+              <div class="bulk-move-toolbar" id="bulk-move-toolbar">
+                <span id="bulk-move-cnt">0件選択中</span>
+                <button class="bulk-move-clear" id="btn-bulk-clear">クリア</button>
+              </div>
+              <button class="btn-master-cnt-toggle" id="btn-master-cnt-toggle" title="登録数バッジを表示">
+                <i class="fa-solid fa-users fa-fw"></i>
+                <span class="btn-mcb-label">登録数: OFF</span>
+              </button>
+              <!-- 会社マスタ専用：バッジ表示設定 -->
+              <div id="company-badge-ctrl" style="display:none;position:relative;">
+                <button id="btn-company-badges" class="btn-company-badges-tog" title="バッジ表示設定">
+                  <i class="fa-solid fa-tags fa-fw"></i>
+                  <span>バッジ</span>
+                  <i class="fa-solid fa-chevron-down" id="company-badges-chevron"></i>
+                </button>
+                <div id="company-badge-panel" class="company-badge-panel" style="display:none">
+                  <div class="cbp-head">バッジ表示設定</div>
+                  <div class="cbp-rows">
+                    <div class="cbp-row" data-badge="levelBadge" title="会社・部署のレベルラベル（会社／部署…）">
+                      <i class="fa-solid fa-tag cbp-row-icon"></i>
+                      <span class="cbp-row-label">レベルバッジ</span>
+                      <span class="cbp-toggle"></span>
+                    </div>
+                    <div class="cbp-row" data-badge="empCount" title="各ノードに紐づく従業員数">
+                      <i class="fa-solid fa-users cbp-row-icon"></i>
+                      <span class="cbp-row-label">従業員数</span>
+                      <span class="cbp-toggle"></span>
+                    </div>
+                    <div class="cbp-row" data-badge="levelStrip" title="会社ルートノードの階層構造（会社／部／課…）">
+                      <i class="fa-solid fa-layer-group cbp-row-icon"></i>
+                      <span class="cbp-row-label">階層構造</span>
+                      <span class="cbp-toggle"></span>
+                    </div>
+                    <div class="cbp-row" data-badge="dateBadge" title="設立日・解散日の期間バッジ">
+                      <i class="fa-solid fa-calendar-range cbp-row-icon"></i>
+                      <span class="cbp-row-label">存在期間</span>
+                      <span class="cbp-toggle"></span>
+                    </div>
+                    <div class="cbp-row" data-badge="corpBadge" title="子会社・M&A等の関連会社バッジ">
+                      <i class="fa-solid fa-code-branch cbp-row-icon"></i>
+                      <span class="cbp-row-label">関連会社</span>
+                      <span class="cbp-toggle"></span>
+                    </div>
+                    <div class="cbp-row" data-badge="soldBadge" title="グループ売却・脱退バッジ">
+                      <i class="fa-solid fa-money-bill-transfer cbp-row-icon"></i>
+                      <span class="cbp-row-label">グループ離脱</span>
+                      <span class="cbp-toggle"></span>
+                    </div>
+                    <div class="cbp-row" data-badge="relBar" title="子会社カード直上の関係種別バー（子会社・M&A・分社化など）">
+                      <i class="fa-solid fa-comment-dots cbp-row-icon"></i>
+                      <span class="cbp-row-label">関係種別バー</span>
+                      <span class="cbp-toggle"></span>
+                    </div>
+                  </div>
+                  <div class="cbp-footer">
+                    <button class="cbp-all-btn" id="cbp-btn-all-on">全ON</button>
+                    <button class="cbp-all-btn cbp-all-btn-off" id="cbp-btn-all-off">全OFF</button>
+                  </div>
+                </div>
+              </div>
+              <div class="master-filter-wrap" id="master-filter-wrap">
+                <i class="fa-solid fa-magnifying-glass mfw-search-icon"></i>
+                <input type="text" id="master-filter-input" placeholder="マスタの項目名でフィルタ…" autocomplete="off">
+                <button id="master-filter-clear" class="master-filter-clear-btn" style="display:none" title="クリア"><i class="fa-solid fa-xmark"></i></button>
+                <div id="company-search-dd" class="company-search-dd" style="display:none"></div>
+              </div>
+              <div class="master-sort-btns" id="master-sort-btns">
+                <button class="btn-master-sort" id="btn-sort-asc" title="名前昇順（A→Z）">
+                  <i class="fa-solid fa-arrow-down-a-z"></i>
+                </button>
+                <button class="btn-master-sort" id="btn-sort-desc" title="名前降順（Z→A）">
+                  <i class="fa-solid fa-arrow-down-z-a"></i>
+                </button>
+              </div>
+              <button class="btn-level-cfg" id="btn-level-cfg" title="階層構造を設定">
+                <i class="fa-solid fa-layer-group"></i>階層設定
+              </button>
+              <button class="btn btn-primary" id="btn-master-add-root">
+                <i class="fa-solid fa-plus"></i><span id="btn-master-add-root-lbl">追加</span>
+              </button>
+              <<button class="btn-master-reset" id="btn-master-dup-check" title="マスタの重複を確認・統合します" style="color: var(--c-warn); border-color: rgba(245,158,11,.3); background: rgba(245,158,11,.05);">
+                <i class="fa-solid fa-clone"></i>重複統合
+              </button>
+              <div class="toolbar-sep" id="master-sep-reset"></div>
+              <button class="btn-master-reset" id="btn-master-reset" title="このマスタを初期状態にリセットします">
+                <i class="fa-solid fa-arrow-rotate-left"></i>初期化
+              </button>
+            </div>
+          </div>
+
+          <div class="org-timeline-bar" id="company-timeline-bar" style="display:none; border-bottom: 1px solid var(--c-border);">
+            <div class="org-tl-left">
+              <div class="org-tl-mode-grp">
+                <button class="org-tl-mode-btn active" id="company-tl-now"><i class="fa-solid fa-circle-dot"></i>現在</button>
+                <button class="org-tl-mode-btn" id="company-tl-history"><i class="fa-solid fa-clock-rotate-left"></i>履歴</button>
+              </div>
+            </div>
+            <div class="org-tl-center">
+              <div class="org-tl-slider-section" id="company-tl-slider-section">
+                <span class="org-tl-edge-date" id="company-tl-start">—</span>
+                <div class="org-tl-range-wrap">
+                  <div class="org-tl-ticks" id="company-tl-ticks"></div>
+                  <input type="range" class="org-tl-range" id="company-tl-range" min="0" max="0" step="1" value="0" style="--progress:100%">
+                </div>
+                <span class="org-tl-edge-date" id="company-tl-end">—</span>
+              </div>
+            </div>
+            <div class="org-tl-right" style="gap:10px;">
+              <label class="btog" id="company-tog-dissolved" title="解散・売却・グループ離脱済みの会社を現在状態ビューで表示する">
+                <input type="checkbox">
+                <i class="fa-solid fa-building-circle-xmark"></i>
+                <span>解散済みを表示</span>
+              </label>
+              <label class="btog is-on" id="company-tog-emp">
+                <input type="checkbox" checked>
+                <i class="fa-solid fa-users"></i>
+                <span>従業員を表示</span>
+              </label>
+              <div class="org-tl-date-disp" id="company-tl-date-disp">
+                <i class="fa-solid fa-calendar-day"></i><span id="company-tl-date-text">現在の状態</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="master-scroll" id="master-scroll">
+            <div class="master-levels-row" id="master-levels-row"></div>
+            <div class="master-tree" id="master-tree"></div>
+            <!-- Tag-specific area -->
+            <div id="tag-master-area" style="display:none">
+              <div class="tag-grid-wrap" style="padding:0">
+                <div id="tag-grid" class="tag-grid"></div>
+                <div id="tag-master-empty" class="tag-master-empty" style="display:none">
+                  <i class="fa-solid fa-tags"></i><p>タグが登録されていません</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+  </div><!-- /#app-body -->
+<!-- WELCOME SCREEN -->
+<div id="welcome-overlay" class="wc-hidden">
+  <div class="welcome-card">
+    <div class="wc-hero">
+      <div class="wc-app-icon"><i class="fa-solid fa-people-group"></i></div>
+      <h1 class="wc-title">従業員分布状況<br>視覚化ツール</h1>
+      <p class="wc-sub">人員の年齢・在社年数・属性などを多角的に可視化し、組織の現状把握や配置検討をサポートします</p>
+    </div>
+    <div class="wc-body">
+      <div class="wc-existing-note" id="wc-existing-note" style="display:none">
+        <i class="fa-solid fa-circle-check"></i>
+        <span id="wc-existing-msg">保存済みのデータが見つかりました。そのまま続けることができます。</span>
+      </div>
+      <div class="wc-step-hint"><i class="fa-solid fa-sparkles" style="color:var(--c-warn)"></i>&nbsp; 主な機能</div>
+      <div class="wc-features">
+        <div class="wc-feat">
+          <div class="wf-icon" style="background:#DBEAFE;color:#1D4ED8"><i class="fa-solid fa-list-ul"></i></div>
+          <div>
+            <div class="wf-ttl">従業員管理</div>
+            <div class="wf-desc">氏名・属性・学歴など多項目を登録。フィルタ・ソートで素早く検索</div>
+          </div>
+        </div>
+        <div class="wc-feat">
+          <div class="wf-icon" style="background:#D1FAE5;color:#065F46"><i class="fa-solid fa-table-cells-large"></i></div>
+          <div>
+            <div class="wf-ttl">分布表示</div>
+            <div class="wf-desc">入社年・年齢別に人員カードを一覧。属性・性別での分離表示にも対応</div>
+          </div>
+        </div>
+        <div class="wc-feat">
+          <div class="wf-icon" style="background:#FEF3C7;color:#92400E"><i class="fa-solid fa-chart-simple"></i></div>
+          <div>
+            <div class="wf-ttl">集計・グラフ</div>
+            <div class="wf-desc">2軸クロス集計で人員の偏りを直感的に把握。表・3D・グラフ表示に対応</div>
+          </div>
+        </div>
+        <div class="wc-feat">
+          <div class="wf-icon" style="background:#F5F3FF;color:#5B21B6"><i class="fa-solid fa-tags"></i></div>
+          <div>
+            <div class="wf-ttl">タグ管理</div>
+            <div class="wf-desc">独自タグをカラーで作成・付与。役職・専門スキルなど自由に分類可能</div>
+          </div>
+        </div>
+      </div>
+      <div class="wc-actions" id="wc-actions-normal">
+        <button class="btn btn-ghost" id="wc-btn-empty"><i class="fa-solid fa-file-circle-plus"></i>空のデータで開始</button>
+        <button class="btn btn-primary" id="wc-btn-sample"><i class="fa-solid fa-rocket"></i>サンプルで試す</button>
+      </div>
+      <div class="wc-actions" id="wc-actions-existing" style="display:none">
+        <button class="btn btn-ghost" id="wc-btn-reset"><i class="fa-solid fa-rotate-left"></i>リセットして再開</button>
+        <button class="btn btn-primary" id="wc-btn-continue"><i class="fa-solid fa-play"></i>続きから開始</button>
+      </div>
+      <div class="wc-import-row" id="wc-import-row">
+        <i class="fa-solid fa-file-arrow-up"></i>
+        <span>既存のJSONファイルをインポートして開始</span>
+        <i class="fa-solid fa-arrow-right" style="font-size:11px"></i>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Import Diff Modal -->
+<div class="overlay" id="import-diff-modal">
+  <div class="modal modal-md">
+    <div class="modal-head">
+      <div class="modal-title"><i class="fa-solid fa-file-arrow-up"></i><span>インポート設定</span></div>
+      <button class="modal-close" data-close="import-diff-modal"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="diff-summary">
+        <div class="diff-section-hd"><i class="fa-solid fa-users"></i>従業員データ</div>
+        <div class="diff-stats" id="diff-emp-stats"></div>
+      </div>
+      <div class="diff-summary">
+        <div class="diff-section-hd"><i class="fa-solid fa-tags"></i>タグデータ</div>
+        <div class="diff-stats" id="diff-tag-stats"></div>
+      </div>
+      <div class="diff-summary" id="diff-masters-summary" style="display:none">
+        <div class="diff-section-hd"><i class="fa-solid fa-sliders"></i>マスタデータ</div>
+        <div class="diff-stats" id="diff-master-stats"></div>
+      </div>
+      <div class="diff-summary" id="diff-settings-row" style="display:none">
+        <div class="diff-section-hd"><i class="fa-solid fa-gear"></i>表示設定データ</div>
+        <div class="diff-settings-note">
+          <label class="diff-settings-chk">
+            <input type="checkbox" id="import-apply-settings">
+            <span>設定を復元する（差分マージ・完全上書き時のみ有効）</span>
+          </label>
+        </div>
+      </div>
+      <div class="fg">
+        <div class="flbl">インポートモード<span class="req">*</span></div>
+        <div class="imode-cards" id="imode-cards">
+          <label class="imode-card is-sel" data-mode="diff_add">
+            <input type="radio" name="imode" value="diff_add" checked="">
+            <div class="imode-icon add"><i class="fa-solid fa-plus"></i></div>
+            <div>
+              <div class="imode-ttl">差分追加</div>
+              <div class="imode-desc">新規IDのデータのみ追加します。既存データは変更しません。</div>
+            </div>
+            <span class="imode-badge recommended">推奨</span>
+          </label>
+          <label class="imode-card" data-mode="diff_merge">
+            <input type="radio" name="imode" value="diff_merge">
+            <div class="imode-icon merge"><i class="fa-solid fa-code-merge"></i></div>
+            <div>
+              <div class="imode-ttl">差分マージ</div>
+              <div class="imode-desc">新規IDを追加し、既存IDのデータはファイルの内容で更新します。</div>
+            </div>
+          </label>
+          <label class="imode-card" data-mode="overwrite">
+            <input type="radio" name="imode" value="overwrite">
+            <div class="imode-icon over"><i class="fa-solid fa-arrow-rotate-left"></i></div>
+            <div>
+              <div class="imode-ttl">完全上書き</div>
+              <div class="imode-desc">現在のデータをすべて削除し、ファイルのデータで置き換えます。</div>
+            </div>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" data-close="import-diff-modal">キャンセル</button>
+      <button class="btn btn-primary" id="btn-do-import"><i class="fa-solid fa-check"></i>インポート実行</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALS -->
+
+<!-- Employee Modal -->
+<div class="overlay" id="emp-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title"><i class="fa-solid fa-user-pen"></i><span id="emp-modal-ttl">従業員登録</span></div>
+      <button class="modal-close" data-close="emp-modal"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <!-- タブナビゲーション -->
+    <div class="modal-tabs" id="emp-modal-tabs">
+      <button class="modal-tab is-active" data-pane="emp-pane-profile" type="button">
+        <i class="fa-solid fa-id-card"></i>プロフィール
+      </button>
+      <button class="modal-tab" data-pane="emp-pane-details" type="button">
+        <i class="fa-solid fa-briefcase"></i>業務・詳細
+      </button>
+      <button class="modal-tab" data-pane="emp-pane-transfer" type="button">
+        <i class="fa-solid fa-route"></i>異動履歴
+        <span class="tab-badge is-zero" id="transfer-tab-badge">0</span>
+      </button>
+      <button class="modal-tab" data-pane="emp-pane-contacts" type="button">
+        <i class="fa-solid fa-address-book"></i>連絡先
+        <span class="tab-badge is-zero" id="contacts-tab-badge">0</span>
+      </button>
+    </div>
+    <!-- 重複チェックバナー -->
+    <div class="emp-dup-banner" id="emp-dup-banner">
+      <i class="fa-solid fa-users-viewfinder"></i>
+      <div class="dup-inner">
+        <span class="dup-msg" id="emp-dup-msg"></span>
+        <div class="dup-links" id="emp-dup-links"></div>
+      </div>
+      <button type="button" class="dup-dismiss" id="emp-dup-dismiss" title="閉じる"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" style="padding:0; overflow:hidden; display:flex; flex-direction:column; flex:1; min-height:0;">
+
+      <!-- ── プロフィールタブ ── -->
+      <div class="modal-tab-pane is-active" id="emp-pane-profile">
+        <input type="hidden" id="f-id">
+        <div class="emp-profile-grid">
+          <!-- 左列: 個人情報 / アバター (大きく表示) -->
+          <div class="emp-avatar-col">
+            <div class="avatar-block">
+              <input type="file" id="f-avatar-input" accept="image/*" multiple style="display:none">
+              <div class="avatar-main-row">
+                <div class="avatar-drop-zone" id="avatar-drop-zone" title="クリック・ドラッグ＆ドロップ・Ctrl+V で写真を登録。画像表示時はダブルクリックで拡大">
+                  <img id="f-avatar-preview" src="" style="display:none;" alt="アバタープレビュー">
+                  <button type="button" class="btn-avatar-zoom" id="btn-avatar-zoom" style="display:none;" title="オリジナル画像を表示"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+                  <div class="avatar-placeholder" id="f-avatar-placeholder">
+                    <i class="fa-solid fa-camera"></i>
+                    <span class="avatar-hint-main">写真</span>
+                    <span class="avatar-hint-sub">クリック/ドロップ/Ctrl+V</span>
+                  </div>
+                  <button type="button" class="btn-avatar-clear" id="btn-avatar-clear" style="display:none;" title="写真を削除"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+              </div>
+              <!-- ギャラリー横列 -->
+              <div class="avatar-gallery-strip-h" id="avatar-gallery-strip"></div>
+              <div class="avatar-gallery-hint" id="avatar-gallery-hint" style="display:none">
+                <i class="fa-solid fa-eye"></i>青枠がカード表示
+              </div>
+              <!-- 設定トグル -->
+              <button type="button" class="avatar-settings-toggle" id="btn-avatar-settings-toggle">
+                <i class="fa-solid fa-sliders"></i>写真の表示設定
+                <i class="fa-solid fa-chevron-down avatar-settings-chevron" id="avatar-settings-chevron"></i>
+              </button>
+              <div class="avatar-settings-panel" id="avatar-settings-panel" style="display:none">
+                <div class="avatar-ctrl-row">
+                  <span class="avatar-ctrl-lbl">比率</span>
+                  <select class="finput w-sm" id="f-avatar-aspect">
+                    <option value="1/1">1:1 (正方形)</option>
+                    <option value="4/3">4:3 (横長)</option>
+                    <option value="16/9">16:9 (超横長)</option>
+                    <option value="3/4">3:4 (縦長)</option>
+                    <option value="9/16">9:16 (超縦長)</option>
+                  </select>
+                </div>
+                <div class="avatar-ctrl-row">
+                  <span class="avatar-ctrl-lbl">角丸</span>
+                  <input type="range" id="f-avatar-radius" min="0" max="50" value="16" style="flex:1; accent-color:var(--c-primary)">
+                  <span id="f-avatar-radius-val" style="font-size:10px;width:26px;text-align:right">16px</span>
+                </div>
+                <div class="avatar-ctrl-row">
+                  <span class="avatar-ctrl-lbl">表示</span>
+                  <select class="finput w-sm" id="f-avatar-fit">
+                    <option value="contain">全体 (余白あり)</option>
+                    <option value="cover">クロップ (切り抜き)</option>
+                  </select>
+                </div>
+                <div class="avatar-paste-hint"><i class="fa-solid fa-paste"></i> Ctrl+V でペースト可</div>
+              </div>
+            </div><!-- /avatar-block -->
+          </div>
+
+          <!-- 右列: 基本情報 -->
+          <div class="emp-personal-col">
+            <div class="fg-section" style="display:flex; align-items:center;">
+              <i class="fa-solid fa-id-card" style="color:var(--c-primary)"></i>個人情報
+              <div id="emp-fuzzy-dup-indicator" style="display:none; margin-left:10px; color:var(--c-warn); cursor:help; font-size:12px; position:relative;" class="tooltip-wrap">
+                <i class="fa-solid fa-triangle-exclamation"></i> 表記ゆれの可能性
+                <div class="fuzzy-dup-tooltip tooltip-content"></div>
+              </div>
+            </div>
+            <!-- 氏名・ふりがな 2×2グリッド -->
+            <div class="emp-name-grid">
+              <div class="fg">
+                <div class="flbl">苗字<span class="req">*</span></div>
+                <input type="text" class="finput finput-ja" id="f-last" placeholder="山田">
+              </div>
+              <div class="fg">
+                <div class="flbl">名前<span class="req">*</span></div>
+                <input type="text" class="finput finput-ja" id="f-first" placeholder="太郎">
+              </div>
+              <div class="fg">
+                <div class="flbl">ふりがな(苗字)</div>
+                <input type="text" class="finput finput-kana" id="f-last-kana" placeholder="やまだ" inputmode="text">
+              </div>
+              <div class="fg">
+                <div class="flbl">ふりがな(名前)</div>
+                <input type="text" class="finput finput-kana" id="f-first-kana" placeholder="たろう" inputmode="text">
+              </div>
+            </div>
+
+            <div class="fg-section"><i class="fa-solid fa-user" style="color:var(--c-primary)"></i>基本属性</div>
+            <div class="fg-row" style="margin-bottom:6px">
+              <div class="fg">
+                <div class="flbl">性別</div>
+                <div class="rpill-group">
+                  <label class="rpill"><input type="radio" name="f-gender" value="男性"><span class="rpill-lbl"><i class="fa-solid fa-mars"></i>男性</span></label>
+                  <label class="rpill"><input type="radio" name="f-gender" value="女性"><span class="rpill-lbl"><i class="fa-solid fa-venus"></i>女性</span></label>
+                  <label class="rpill"><input type="radio" name="f-gender" value="その他"><span class="rpill-lbl">その他</span></label>
+                  <label class="rpill"><input type="radio" name="f-gender" value="" checked=""><span class="rpill-lbl">未設定</span></label>
+                </div>
+              </div>
+            </div>
+            <div class="fg" style="margin-bottom:12px">
+              <div class="flbl" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;row-gap:4px">
+                <span>生年月日<span class="opt">（任意）</span></span>
+                <span class="birth-mode-seg" id="birth-mode-seg">
+                  <button type="button" class="bmt-btn is-active" data-mode="exact">生年月日</button>
+                  <button type="button" class="bmt-btn" data-mode="approx">年齢で代用</button>
+                </span>
+              </div>
+              <div id="birth-exact-wrap">
+                <div class="hire-wrap w-md" style="position:relative">
+                  <input type="text" class="finput finput-num" id="f-birth" placeholder="1990-04-01" autocomplete="off" inputmode="numeric">
+                  <button type="button" class="btn-cal" id="btn-birth-cal" title="カレンダーで選択"><i class="fa-solid fa-calendar-days"></i></button>
+                </div>
+                <div class="f-hint-hire" id="f-hint-birth">
+                  <span class="fh-base">年のみ可 · スラッシュ入力対応</span>
+                  <span class="fh-norm" id="fbirth-norm"></span>
+                  <span class="fh-err" id="fbirth-err"></span>
+                  <span id="fbirth-zodiac" style="display:none;" class="badge b-zodiac"></span>
+                </div>
+              </div>
+              <div id="birth-approx-wrap" style="display:none">
+                <div class="approx-age-wrap">
+                  <div id="approx-age-list"></div>
+                  <button type="button" class="btn btn-ghost btn-icon-sm" id="btn-add-approx" style="width:100%; border:1px dashed var(--c-border-d); margin-top:4px;">
+                    <i class="fa-solid fa-plus"></i>別の基準日の年齢を追加して精度を上げる
+                  </button>
+                  <div class="approx-hint" id="approx-hint-text"><i class="fa-solid fa-circle-info" style="color:#D97706"></i>基準日時点の年齢から現在の年齢を概算します</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="fg-section"><i class="fa-solid fa-graduation-cap" style="color:var(--c-primary)"></i>学歴</div>
+            <div class="fg-row fg-edu-row">
+              <div class="fg fg-edu-kind">
+                <div class="flbl">学歴区分<span class="opt">（任意）</span></div>
+                <select class="finput" id="f-education" style="cursor:pointer; width:100%">
+                  <option value="">未設定</option>
+                  <option>中卒</option><option>高卒</option><option>高専卒</option>
+                  <option>短大卒</option><option>専門卒</option><option>大卒</option>
+                  <option>修士</option><option>博士</option>
+                </select>
+              </div>
+              <div class="fg fg-edu-school">
+                <div class="flbl">学校名<span class="opt">（任意）</span></div>
+                <div class="master-ac-wrap" id="school-ac-wrap">
+                  <input type="text" class="finput finput-ja" id="f-school" placeholder="学校名を入力" autocomplete="off">
+                  <div class="master-ac-dropdown" id="school-ac-dropdown"></div>
+                </div>
+              </div>
+              <div class="fg fg-edu-dept">
+                <div class="flbl">学部・専攻・学科<span class="opt">（任意）</span></div>
+                <div class="master-ac-wrap" id="dept-ac-wrap">
+                  <input type="text" class="finput finput-ja" id="f-edu-dept" placeholder="学部・学科・専攻" autocomplete="off">
+                  <div class="master-ac-dropdown" id="dept-ac-dropdown"></div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div><!-- /emp-pane-profile -->
+
+      <!-- ── 業務・詳細タブ ── -->
+      <div class="modal-tab-pane" id="emp-pane-details">
+        <div class="emp-details-grid">
+          <!-- 左列: 就業情報 -->
+          <div class="emp-job-col">
+            <div class="fg-section"><i class="fa-solid fa-layer-group" style="color:var(--c-primary)"></i>在籍情報</div>
+            <div class="fg">
+              <div class="flbl">在籍状況</div>
+              <div class="rpill-group" id="f-status-group"></div>
+            </div>
+            <!-- 退職年月日 -->
+            <div class="fg fg-resign-date" id="fg-resign-date" style="display:none">
+              <div class="flbl"><i class="fa-solid fa-calendar-xmark" style="color:var(--c-danger);margin-right:4px"></i>退職年月日<span class="opt">（任意）</span></div>
+              <div class="hire-wrap w-md" style="position:relative">
+                <input type="text" class="finput finput-num" id="f-resign" placeholder="2024-03-31" autocomplete="off" inputmode="numeric">
+                <button type="button" class="btn-cal" id="btn-resign-cal" title="カレンダーで選択"><i class="fa-solid fa-calendar-days"></i></button>
+              </div>
+              <div class="f-hint-hire" id="f-hint-resign">
+                <span class="fh-base">年のみ可 · スラッシュ入力対応</span>
+                <span class="fh-norm" id="fresign-norm"></span>
+                <span class="fh-err" id="fresign-err"></span>
+              </div>
+            </div>
+            
+            <div class="fg" style="margin-top:6px">
+              <div class="flbl">入社年月日<span class="opt">（任意）</span></div>
+              <div class="hire-wrap w-md" style="position:relative">
+                <input type="text" class="finput finput-num" id="f-hire" placeholder="2020-04-01" autocomplete="off" inputmode="numeric">
+                <button type="button" class="btn-cal" id="btn-hire-cal" title="カレンダーで選択"><i class="fa-solid fa-calendar-days"></i></button>
+              </div>
+              <div class="f-hint-hire" id="f-hint-hire">
+                <span class="fh-base">年のみ可 · スラッシュ対応</span>
+                <span class="fh-norm" id="fh-norm"></span>
+                <span class="fh-err" id="fh-err"></span>
+              </div>
+            </div>
+            <div class="fg" style="margin-top:6px">
+              <div class="flbl">入社区分</div>
+              <div class="rpill-group rpill-group-hiretype" id="f-hiretype-group"></div>
+            </div>
+
+            <div class="fg-section" style="margin-top:12px"><i class="fa-solid fa-briefcase" style="color:var(--c-primary)"></i>業務属性</div>
+            <div class="fg">
+              <div class="flbl">属性</div>
+              <div class="rpill-group" id="f-attr-group"></div>
+            </div>
+            <div class="fg">
+              <div class="flbl">職群</div>
+              <div class="rpill-group" id="f-course-group"></div>
+            </div>
+          </div>
+
+          <!-- 右列: タグ・メモ -->
+          <div class="emp-extra-col">
+            <div class="fg-section"><i class="fa-solid fa-tags" style="color:var(--c-primary)"></i>分類・個別メモ</div>
+            <div class="fg">
+              <div class="flbl">タグ<span class="opt">（あいまい検索）</span></div>
+              <div class="tag-fuzzy-wrap" id="tag-fuzzy-wrap">
+                <div class="tag-chips-row" id="tag-chips-row"></div>
+                <div class="tag-fuzzy-input-wrap">
+                  <div class="search-wrap">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" class="finput w-full" id="tag-fuzzy-input" placeholder="タグ名で検索して追加…" autocomplete="off">
+                  </div>
+                  <div class="tag-dropdown" id="tag-dropdown"></div>
+                </div>
+              </div>
+              <div id="f-tag-hint" style="font-size:12px;color:var(--c-text-3);margin-top:4px;display:none">タグマスタにタグが登録されていません</div>
+            </div>
+            <div class="fg" style="margin-top:8px">
+              <div class="flbl">個別メモ<span class="opt">（任意）</span></div>
+              <textarea class="finput w-full" id="f-memo" placeholder="自由記述欄" style="height:140px"></textarea>
+            </div>
+          </div>
+        </div>
+      </div><!-- /emp-pane-details -->
+
+      <!-- ── 異動履歴タブ ── -->
+      <div class="modal-tab-pane" id="emp-pane-transfer">
+
+        <!-- 基本情報参照パネル -->
+        <div class="transfer-info-panel" id="transfer-info-panel" style="display:none">
+          <div class="tip-head">
+            <i class="fa-solid fa-id-card tip-head-icon"></i>
+            <span>基本情報</span>
+          </div>
+          <div class="tip-body">
+            <div class="tip-item tip-item-name">
+              <span class="tip-lbl">氏名</span>
+              <span class="tip-val tip-val-name" id="tip-emp-name">─</span>
+            </div>
+            <div class="tip-divider"></div>
+            <div class="tip-item">
+              <span class="tip-lbl"><i class="fa-solid fa-calendar-days"></i>入社年月日</span>
+              <span class="tip-val" id="tip-hire-date">─</span>
+            </div>
+            <div class="tip-item">
+              <span class="tip-lbl"><i class="fa-solid fa-hourglass-half"></i>在社年数</span>
+              <span class="tip-val tip-val-accent" id="tip-tenure">─</span>
+            </div>
+            <div class="tip-divider"></div>
+            <div class="tip-item">
+              <span class="tip-lbl">在籍状況</span>
+              <span class="tip-val" id="tip-status">─</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="transfer-toolbar">
+          <div class="transfer-toolbar-title">
+            <i class="fa-solid fa-clock-rotate-left" style="color:var(--c-primary)"></i>在籍履歴（配属・異動・休職）
+          </div>
+          <div class="transfer-toolbar-btns">
+            <button type="button" class="btn btn-ghost btn-icon-sm" id="btn-transfer-sort" title="昇順/降順を切替" style="margin-right: 4px;">
+              <i class="fa-solid fa-arrow-down-1-9" id="icon-transfer-sort"></i>
+            </button>
+            <button type="button" class="btn btn-primary" id="btn-transfer-add" style="height: 28px; padding: 0 10px; font-size: 12px; border-radius: 5px;">
+              <i class="fa-solid fa-plus"></i>履歴入力
+            </button>
+          </div>
+        </div>
+
+        <!-- ── 統合入力フォームエリア (非表示) ── -->
+        <div id="history-entry-wrap" style="display:none; margin-bottom: 14px;">
+          <!-- ── 統合セグメントコントロール ── -->
+          <div class="trkind-wrap" style="margin-bottom:0; overflow:visible;">
+            <div class="trkind-seg" id="te-kind-seg">
+              <div class="trkind-grp">
+                <button type="button" class="trkind-btn is-active" data-kind="assignment"><i class="fa-solid fa-rotate"></i>主務(配属・異動)</button>
+                <button type="button" class="trkind-btn" data-kind="concurrent"><i class="fa-solid fa-code-branch"></i>兼務</button>
+                <button type="button" class="trkind-btn" data-kind="positionChange"><i class="fa-solid fa-user-tie"></i>役職変更のみ</button>
+              </div>
+              <div class="trkind-grp">
+                <button type="button" class="trkind-btn" data-kind="secondment"><i class="fa-solid fa-right-left"></i>出向</button>
+                <button type="button" class="trkind-btn" data-kind="stationed"><i class="fa-solid fa-location-dot"></i>駐在</button>
+                <button type="button" class="trkind-btn" data-kind="transfer"><i class="fa-solid fa-right-from-bracket"></i>転籍</button>
+              </div>
+              <div class="trkind-grp">
+                <button type="button" class="trkind-btn" data-kind="removePosition"><i class="fa-solid fa-user-minus"></i>役職解除</button>
+                <button type="button" class="trkind-btn" data-kind="endAssignment"><i class="fa-solid fa-door-open"></i>在籍終了</button>
+              </div>
+              <div class="trkind-grp">
+                <button type="button" class="trkind-btn" data-kind="leave"><i class="fa-solid fa-bed-pulse"></i>休職・休業</button>
+                <button type="button" class="trkind-btn" data-kind="resignation"><i class="fa-solid fa-person-walking-arrow-right"></i>退職(離籍)・再入社</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 配属・異動系 フォーム -->
+          <div class="transfer-edit-card" id="transfer-edit-card" data-kind="assignment" style="border-top-left-radius:0; border-top-right-radius:0; margin-bottom:0; border-top:none;">
+            <div class="transfer-edit-title"><i class="fa-solid fa-pen-to-square"></i><span id="transfer-edit-title-lbl">配属・異動を追加</span></div>
+            <input type="hidden" id="te-id">
+            <input type="hidden" id="te-kind" value="assignment">
+            
+            <span class="trkind-hint" id="te-kind-hint" style="margin-bottom:12px; display:block;">部署の異動、新規配属（役職の同時変更も可能）</span>
+
+            <!-- ── 日付・役職 ── -->
+            <div class="fg-row" style="align-items:flex-start;gap:12px">
+              <div class="fg" style="flex:1.2; min-width:0;">
+                <div class="flbl" style="display:flex; align-items:center; gap:8px; margin-bottom:4px; min-height:24px;">
+                  <span>日付<span class="req">*</span></span>
+                  <div class="birth-mode-seg" id="te-date-mode-seg" style="margin:0;">
+                    <button type="button" class="bmt-btn is-active" data-mode="start" title="通常の配属・異動の開始日">開始日</button>
+                    <button type="button" class="bmt-btn" data-mode="end" title="開始日が不明な場合の終了日のみの記録">終了日のみ</button>
+                  </div>
+                </div>
+                <div id="te-start-wrap" class="hire-wrap">
+                  <input type="text" class="finput finput-num" id="te-date" placeholder="開始日 (YYYY-MM-DD)" autocomplete="off" inputmode="numeric" title="開始日">
+                  <button type="button" class="btn-cal" id="btn-te-date-cal" title="カレンダーで選択"><i class="fa-solid fa-calendar-days"></i></button>
+                </div>
+                <div id="te-end-date-wrap" class="hire-wrap" style="display:none;">
+                  <input type="text" class="finput finput-num" id="te-end-date" placeholder="終了日 (YYYY-MM-DD)" autocomplete="off" inputmode="numeric" title="終了日">
+                  <button type="button" class="btn-cal" id="btn-te-end-date-cal" title="カレンダーで選択"><i class="fa-solid fa-calendar-days"></i></button>
+                </div>
+                <div class="f-hint" id="te-date-hint" style="margin-top:4px;"><i class="fa-solid fa-circle-info"></i> 次の履歴の開始日で自動的に終了とみなされます</div>
+              </div>
+              <div class="fg" style="flex:1; min-width:0;">
+                <div class="flbl" style="display:flex; align-items:center; margin-bottom:4px; min-height:24px;">役職<span class="opt">（任意）</span></div>
+                <div class="master-ac-wrap" id="te-position-wrap">
+                  <input type="text" class="finput" id="te-position" placeholder="役職名を入力・選択" autocomplete="off">
+                  <div class="master-ac-dropdown" id="te-position-dd"></div>
+                </div>
+              </div>
+            </div>
+            <!-- 対象配属先（役職変更・解除・終了用） -->
+            <div class="fg te-target-org-fg" id="te-target-org-row" style="display:none">
+              <div class="flbl">対象の配属先<span class="req">*</span></div>
+              <select class="finput" id="te-target-org"></select>
+            </div>
+            <!-- 組織階層フィールド（フルパスサジェスト） -->
+            <div class="fg te-org-fg" id="te-org-row">
+              <div class="flbl">所属組織（会社マスタから選択）<span class="opt">（任意）</span></div>
+              <div class="master-ac-wrap" id="te-company-wrap">
+                <input type="text" class="finput" id="te-company-input" placeholder="会社名・部門名などを入力して検索" autocomplete="off">
+                <div class="master-ac-dropdown" id="te-company-dd"></div>
+              </div>
+              <input type="hidden" id="te-company-levels">
+            </div>
+            <!-- 勤務場所（駐在時のみ表示） -->
+            <div class="fg" id="te-work-location-row" style="display:none">
+              <div class="flbl">勤務場所<span class="opt">（会社マスタ・拠点名と連動）</span></div>
+              <div class="master-ac-wrap" id="te-work-location-wrap">
+                <input type="text" class="finput finput-ja" id="te-work-location" placeholder="駐在先の場所・拠点名を入力" autocomplete="off">
+                <div class="master-ac-dropdown" id="te-work-location-dd"></div>
+              </div>
+            </div>
+            <div class="fg">
+              <div class="flbl">備考<span class="opt">（任意）</span></div>
+              <input type="text" class="finput finput-ja" id="te-note" placeholder="異動理由・役職変更など自由記述">
+            </div>
+            <div class="transfer-edit-foot">
+              <button type="button" class="btn btn-ghost" id="btn-transfer-cancel">キャンセル</button>
+              <button type="button" class="btn btn-primary" id="btn-transfer-save">
+                <i class="fa-solid fa-check"></i>保存
+              </button>
+            </div>
+          </div>
+
+          <!-- 休職・休業 フォーム (非表示) -->
+          <div class="leave-edit-card" id="leave-edit-card" style="display:none; border-top-left-radius:0; border-top-right-radius:0; margin-bottom:0; border-top:none;">
+            <div class="leave-edit-title">
+              <i class="fa-solid fa-bed-pulse"></i>
+              <span id="leave-edit-title-lbl">休職・休業を追加</span>
+            </div>
+            <input type="hidden" id="le-id">
+            <div class="fg-row" style="align-items:flex-start;gap:12px">
+              <div class="fg" style="flex:0 0 150px">
+                <div class="flbl">種別<span class="req">*</span></div>
+                <select class="finput" id="le-type">
+                  <option value="absence">休職</option>
+                  <option value="childcare">育児休業</option>
+                  <option value="maternity">産前産後休業</option>
+                  <option value="nursing">介護休業</option>
+                  <option value="other">その他</option>
+                </select>
+              </div>
+              <div class="fg" style="flex:1">
+                <div class="flbl">期間<span class="req">*</span>（終了日未定は空欄）</div>
+                <div class="leave-period-row">
+                  <div class="hire-wrap" style="flex:1">
+                    <input type="text" class="finput finput-num" id="le-start" placeholder="YYYY-MM-DD" autocomplete="off" inputmode="numeric" title="開始日">
+                    <button type="button" class="btn-cal" id="btn-le-start-cal" title="カレンダーで選択"><i class="fa-solid fa-calendar-days"></i></button>
+                  </div>
+                  <span class="leave-period-sep"><i class="fa-solid fa-arrow-right"></i></span>
+                  <div class="hire-wrap" style="flex:1">
+                    <input type="text" class="finput finput-num" id="le-end" placeholder="未定は空欄" autocomplete="off" inputmode="numeric" title="終了日（任意）">
+                    <button type="button" class="btn-cal" id="btn-le-end-cal" title="カレンダーで選択"><i class="fa-solid fa-calendar-days"></i></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="fg">
+              <div class="flbl">備考<span class="opt">（任意）</span></div>
+              <input type="text" class="finput finput-ja" id="le-note" placeholder="例：私傷病のため、復職予定 2025/10…">
+            </div>
+            <div class="transfer-edit-foot">
+              <button type="button" class="btn btn-ghost" id="btn-leave-cancel">キャンセル</button>
+              <button type="button" class="btn btn-leave" id="btn-leave-save">
+                <i class="fa-solid fa-check"></i>保存
+              </button>
+            </div>
+          </div>
+
+          <!-- 退職・再入社 フォーム (非表示) -->
+          <div class="leave-edit-card" id="resignation-edit-card" style="display:none; border-top-left-radius:0; border-top-right-radius:0; margin-bottom:0; border-top:none;">
+            <div class="leave-edit-title" style="color: var(--c-text-2);">
+              <i class="fa-solid fa-person-walking-arrow-right"></i>
+              <span id="resignation-edit-title-lbl">退職・再入社（出戻り）処理</span>
+            </div>
+            <p style="font-size: 11.5px; color: var(--c-text-3); margin-bottom: 12px; line-height: 1.5;">
+              退職日のみ入力：在籍状況が「退職」に変更され、すべての在籍が終了します。<br>
+              再入社日も入力：離籍期間として記録され、在籍状況は「在籍」、入社区分は「中途」に変更されます。
+            </p>
+            <div class="fg-row" style="align-items:flex-start;gap:12px">
+              <div class="fg" style="flex:1">
+                <div class="flbl">退職年月日<span class="req">*</span></div>
+                <div class="hire-wrap" style="width: 100%;">
+                  <input type="text" class="finput finput-num" id="re-date" placeholder="YYYY-MM-DD" autocomplete="off" inputmode="numeric" title="退職日">
+                  <button type="button" class="btn-cal" id="btn-re-date-cal" title="カレンダーで選択"><i class="fa-solid fa-calendar-days"></i></button>
+                </div>
+              </div>
+              <div class="fg" style="flex:0 0 20px; align-items:center; justify-content:center; padding-top:28px; color:var(--c-text-3);">
+                <i class="fa-solid fa-arrow-right"></i>
+              </div>
+              <div class="fg" style="flex:1">
+                <div class="flbl">再入社日（出戻りの場合のみ）<span class="opt">（任意）</span></div>
+                <div class="hire-wrap" style="width: 100%;">
+                  <input type="text" class="finput finput-num" id="re-rejoin-date" placeholder="YYYY-MM-DD" autocomplete="off" inputmode="numeric" title="再入社日">
+                  <button type="button" class="btn-cal" id="btn-re-rejoin-date-cal" title="カレンダーで選択"><i class="fa-solid fa-calendar-days"></i></button>
+                </div>
+              </div>
+            </div>
+            <div class="transfer-edit-foot" style="margin-top: 8px;">
+              <button type="button" class="btn btn-ghost" id="btn-resignation-cancel">キャンセル</button>
+              <button type="button" class="btn btn-danger" id="btn-resignation-save">
+                <i class="fa-solid fa-check"></i>保存する
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- タイムライン表示エリア -->
+        <div id="transfer-list-area">
+          <div class="transfer-empty" id="transfer-empty" style="display:none">
+            <i class="fa-solid fa-route"></i>
+            <p>履歴がありません。「履歴入力」から登録してください。</p>
+          </div>
+          <div class="transfer-timeline" id="transfer-timeline"></div>
+        </div>
+      </div><!-- /emp-pane-transfer -->
+
+      <!-- ── 連絡先タブ ── -->
+      <div class="modal-tab-pane" id="emp-pane-contacts">
+        <div class="transfer-toolbar">
+          <div class="transfer-toolbar-title">
+            <i class="fa-solid fa-address-book" style="color:var(--c-primary)"></i>連絡先情報
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" id="btn-contact-add">
+            <i class="fa-solid fa-plus"></i>追加
+          </button>
+        </div>
+        <!-- インライン入力フォーム -->
+        <div class="transfer-edit-card" id="contact-edit-card" style="display:none">
+          <div class="transfer-edit-title">
+            <i class="fa-solid fa-pen-to-square"></i>
+            <span id="contact-edit-title-lbl">連絡先を追加</span>
+          </div>
+          <input type="hidden" id="ct-id">
+          <div class="fg-row" style="gap:8px">
+            <div class="fg" style="flex:0 0 150px">
+              <div class="flbl">種別<span class="req">*</span></div>
+              <select class="finput" id="ct-type">
+                <option value="phone"><i class="fa-solid fa-phone"></i>電話番号</option>
+                <option value="mobile">携帯電話</option>
+                <option value="email">メールアドレス</option>
+                <option value="address">住所</option>
+                <option value="other">その他</option>
+              </select>
+            </div>
+            <div class="fg">
+              <div class="flbl">ラベル<span class="opt">（任意）</span></div>
+              <input type="text" class="finput finput-ja" id="ct-label" placeholder="自宅・会社・緊急連絡先など">
+            </div>
+          </div>
+          <div class="fg">
+            <div class="flbl" id="ct-value-lbl">値<span class="req">*</span></div>
+            <input type="text" class="finput" id="ct-value" placeholder="入力してください" autocomplete="off">
+            <div class="geo-status" id="ct-geo-status" style="display:none"></div>
+          </div>
+          <div class="transfer-edit-foot">
+            <button type="button" class="btn btn-ghost" id="btn-contact-cancel">キャンセル</button>
+            <button type="button" class="btn btn-primary" id="btn-contact-save">
+              <i class="fa-solid fa-check"></i>保存
+            </button>
+          </div>
+        </div>
+        <!-- 連絡先リスト -->
+        <div id="contact-list-area">
+          <div class="transfer-empty" id="contact-empty">
+            <i class="fa-solid fa-address-book"></i>
+            <p>連絡先が登録されていません。「追加」ボタンから登録してください。</p>
+          </div>
+          <div class="contact-list" id="contact-list"></div>
+        </div>
+      </div><!-- /emp-pane-contacts -->
+
+    </div><!-- /modal-body -->
+    <div class="modal-foot">
+      <button type="button" class="btn btn-danger" id="btn-delete-emp" style="display:none;margin-right:auto"><i class="fa-solid fa-trash-can"></i>削除</button>
+      <button type="button" class="btn btn-ghost" id="btn-cancel-emp">キャンセル</button>
+      <button type="button" class="btn btn-primary" id="btn-save-emp"><i class="fa-solid fa-check"></i>保存</button>
+    </div>
+  </div>
+</div>
+<div class="overlay" id="tag-modal">
+  <div class="modal modal-sm">
+    <div class="modal-head">
+      <div class="modal-title"><i class="fa-solid fa-tag"></i><span id="tag-modal-ttl">タグ追加</span></div>
+      <button class="modal-close" data-close="tag-modal"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="tf-id">
+      <div class="fg"><div class="flbl">タグ名<span class="req">*</span></div><input type="text" class="finput" id="tf-name" placeholder="タグ名を入力"></div>
+      <div class="fg">
+        <div class="flbl">親タグ<span class="opt">（任意・階層化）</span></div>
+        <select class="tag-parent-select" id="tf-parent">
+          <option value="">なし（ルートタグ）</option>
+        </select>
+      </div>
+      <div class="fg">
+        <div class="flbl">カラー</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <input type="color" class="finput" id="tf-color" value="#6366F1" style="width:56px;height:34px;padding:2px;cursor:pointer">
+          <span style="font-size:12px;color:var(--c-text-2)">カスタムカラー</span>
+        </div>
+        <div class="clr-presets" id="clr-presets"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" data-close="tag-modal">キャンセル</button>
+      <button class="btn btn-primary" id="btn-save-tag"><i class="fa-solid fa-check"></i>保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="overlay" id="confirm-modal">
+  <div class="modal modal-sm">
+    <div class="modal-head">
+      <div class="modal-title" id="confirm-modal-title-wrap">
+        <i id="confirm-modal-icon" class="fa-solid fa-triangle-exclamation" style="color:var(--c-warn)"></i>
+        <span id="confirm-modal-title">削除の確認</span>
+      </div>
+      <button class="modal-close" data-close="confirm-modal"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" style="padding-top:20px">
+      <div class="confirm-ico"><i id="confirm-ico-inner" class="fa-solid fa-trash-can" style="color:var(--c-danger)"></i></div>
+      <p class="confirm-msg" id="confirm-msg"></p>
+      <div id="confirm-prompt-wrap" style="display:none; margin-top: 18px; padding-top: 16px; border-top: 1px dashed var(--c-border);">
+        <p style="font-size: 12.5px; font-weight: 600; color: var(--c-danger); margin-bottom: 8px; text-align: center;" id="confirm-prompt-lbl">確認のため「リセット」と入力してください</p>
+        <input type="text" class="finput" id="confirm-prompt-input" style="text-align: center; max-width: 200px; margin: 0 auto; display: block;" autocomplete="off" placeholder="リセット">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" data-close="confirm-modal">キャンセル</button>
+      <button class="btn btn-danger" id="btn-confirm-ok"><i class="fa-solid fa-trash-can"></i>削除する</button>
+    </div>
+  </div>
+</div>
+
+<!-- Export Image Modal -->
+<div class="overlay" id="export-img-modal">
+  <div class="modal modal-sm">
+    <div class="modal-head">
+      <div class="modal-title"><i class="fa-solid fa-camera"></i><span>画像出力</span></div>
+      <button class="modal-close" data-close="export-img-modal"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="fg">
+        <div class="flbl">出力対象ビュー</div>
+        <div class="rpill-group">
+          <label class="rpill"><input type="radio" name="exp-view" value="distribution" checked=""><span class="rpill-lbl"><i class="fa-solid fa-table-cells-large"></i>分布表示</span></label>
+          <label class="rpill"><input type="radio" name="exp-view" value="heatmap"><span class="rpill-lbl"><i class="fa-solid fa-table-cells"></i>ヒートマップ</span></label>
+        </div>
+      </div>
+      <div class="fg-row">
+        <div class="fg">
+          <div class="flbl">出力枚数<span class="opt">（1〜10）</span></div>
+          <input type="number" class="finput" id="export-img-count" min="1" max="10" value="1" style="width:80px">
+          <div class="f-hint">縦方向を均等分割して出力</div>
+        </div>
+        <div class="fg fg-w2">
+          <div class="flbl">ファイル名プレフィックス</div>
+          <input type="text" class="finput" id="export-img-prefix" value="employee_dist" placeholder="employee_dist">
+        </div>
+      </div>
+      <div class="export-progress" id="export-progress" style="display:none">
+        <div class="export-prog-lbl" id="export-prog-lbl">出力中...</div>
+        <div class="export-prog-bar"><div class="export-prog-inner" id="export-prog-inner"></div></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" data-close="export-img-modal" id="btn-export-cancel">キャンセル</button>
+      <button class="btn btn-primary" id="btn-do-export"><i class="fa-solid fa-download"></i>出力する</button>
+    </div>
+  </div>
+</div>
+
+<!-- Master Node Edit Modal -->
+<div class="overlay" id="master-node-modal">
+  <div class="modal" id="mnm-modal-window">
+    <div class="modal-head">
+      <div class="modal-title"><i class="fa-solid fa-pen-to-square" style="color:var(--c-primary)"></i><span id="mnm-title">項目を追加</span></div>
+      <button class="modal-close" data-close="master-node-modal"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="mnm-err-bar" id="mnm-err-bar" role="alert" aria-live="assertive"></div>
+
+    <!-- タブナビゲーション（会社・学校マスタ時のみ表示） -->
+    <div class="modal-tabs" id="mnm-tabs" style="display:none; padding-top:4px;">
+      <button class="modal-tab is-active" data-pane="mnm-pane-basic" type="button">
+        <i class="fa-solid fa-circle-info"></i>基本情報
+      </button>
+      <button class="modal-tab" data-pane="mnm-pane-events" type="button">
+        <i class="fa-solid fa-timeline"></i>再編・統合イベント
+      </button>
+    </div>
+
+    <div class="modal-body" style="padding:0; display:flex; flex-direction:column; overflow:hidden; flex:1; min-height:0;">
+      <!-- ── 基本情報タブ ── -->
+      <div class="modal-tab-pane is-active" id="mnm-pane-basic">
+        <div class="mnm-basic-grid">
+          <input type="hidden" id="mnm-type">
+          <input type="hidden" id="mnm-id">
+          <input type="hidden" id="mnm-parent-id">
+          <input type="hidden" id="mnm-level">
+          
+          <div class="fg">
+            <div class="flbl" id="mnm-name-lbl">名称<span class="req">*</span></div>
+            <input type="text" class="finput" id="mnm-name" placeholder="">
+          </div>
+
+          <div class="fg" id="mnm-address-row" style="display:none; margin-top:4px;">
+            <div class="flbl"><i class="fa-solid fa-location-dot" style="color:var(--c-text-3);margin-right:4px"></i>住所<span class="opt">（任意）</span></div>
+            <input type="text" class="finput" id="mnm-address" placeholder="都道府県市区町村...">
+            <div class="geo-status" id="mnm-geo-status" style="display:none"></div>
+          </div>
+
+          <div class="fg" id="mnm-is-group-row" style="display:none; margin-top:0; margin-bottom:12px;">
+            <div class="flbl">ノードカテゴリ<span class="req">*</span></div>
+            <select class="finput" id="mnm-node-category"></select>
+            <div class="f-hint" id="mnm-node-category-hint" style="margin-top:4px">カテゴリを選択してください</div>
+          </div>
+
+          <div class="fg" id="mnm-node-type-row" style="display:none; margin-top:4px;">
+            <div class="flbl">ノード種別<span class="req">*</span></div>
+            <div class="rpill-group" id="mnm-node-type-group">
+              <label class="rpill"><input type="radio" name="mnm-node-type" value="company" checked><span class="rpill-lbl"><i class="fa-solid fa-building"></i>会社</span></label>
+              <label class="rpill"><input type="radio" name="mnm-node-type" value="facility"><span class="rpill-lbl"><i class="fa-solid fa-map-location-dot"></i>事業所</span></label>
+              <label class="rpill"><input type="radio" name="mnm-node-type" value="department"><span class="rpill-lbl"><i class="fa-solid fa-sitemap"></i>部門</span></label>
+            </div>
+            <div class="f-hint" id="mnm-node-type-hint" style="color:var(--c-text-3);margin-top:4px"></div>
+          </div>
+
+          <div class="fg" id="mnm-color-row" style="display:none">
+            <div class="flbl">カラー</div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+              <input type="color" class="finput" id="mnm-color" value="#6366F1" style="width:56px;height:34px;padding:2px;cursor:pointer">
+              <span style="font-size:12px;color:var(--c-text-2)">カスタムカラー</span>
+              <span class="mnm-color-preview" id="mnm-color-preview" style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:99px;font-size:11.5px;font-weight:600"></span>
+            </div>
+            <div class="clr-presets" id="mnm-clr-presets"></div>
+          </div>
+
+          <div class="fg" id="mnm-icon-row" style="display:none; margin-top:8px">
+            <div class="flbl">アイコン<span class="opt">（任意）</span></div>
+            <input type="hidden" id="mnm-icon-val" value="">
+            <div class="icon-presets" id="mnm-icon-presets"></div>
+          </div>
+
+          <div class="fg" id="mnm-company-dates-row" style="display:none; margin-top:4px">
+            <div class="flbl"><i class="fa-solid fa-calendar-range" style="color:var(--c-primary);margin-right:4px"></i>存在期間（設立日・解散日）<span class="opt">（任意）</span></div>
+            <div class="company-dates-row">
+              <div class="company-date-field">
+                <span class="company-date-lbl"><i class="fa-solid fa-building-circle-check"></i>設立日</span>
+                <div class="hire-wrap" style="flex:1">
+                  <input type="text" class="finput flex-date-input" id="mnm-founded-date" placeholder="2010 / 2010-04 / 2010-04-01">
+                  <button type="button" class="btn-cal" id="btn-mnm-founded-cal" title="カレンダーで選択"><i class="fa-solid fa-calendar-days"></i></button>
+                </div>
+              </div>
+              <span class="company-date-arrow"><i class="fa-solid fa-arrow-right"></i></span>
+              <div class="company-date-field">
+                <span class="company-date-lbl company-date-lbl--dissolved"><i class="fa-solid fa-building-circle-xmark"></i>解散日</span>
+                <div class="hire-wrap" style="flex:1">
+                  <input type="text" class="finput flex-date-input" id="mnm-dissolved-date" placeholder="2030 / 2030-03 / 2030-03-31">
+                  <button type="button" class="btn-cal" id="btn-mnm-dissolved-cal" title="カレンダーで選択"><i class="fa-solid fa-calendar-days"></i></button>
+                </div>
+              </div>
+            </div>
+            <div class="f-hint" id="mnm-dates-hint" style="color:var(--c-text-3);margin-top:4px">
+              <i class="fa-solid fa-circle-info"></i> 年のみ（2010）、年月（2010-04）、年月日（2010-04-01）いずれも入力可
+            </div>
+          </div>
+
+          <div class="fg" id="mnm-oldnames-row" style="display:none; margin-top:8px; padding-top:8px; border-top:1px dashed var(--c-border);">
+            <div class="flbl"><i class="fa-solid fa-clock-rotate-left" style="color:var(--c-primary);margin-right:4px"></i>名称変更履歴<span class="opt">（任意）</span></div>
+            <div id="mnm-oldnames-list" style="display:flex; flex-direction:column; gap:4px; margin-bottom:6px;"></div>
+            <button type="button" class="btn btn-ghost btn-icon-sm" id="btn-mnm-add-oldname" style="width:100%; border:1px dashed var(--c-border-d);">
+              <i class="fa-solid fa-plus"></i>過去の名称を追加
+            </button>
+            <div class="f-hint" style="color:var(--c-text-3);margin-top:4px">
+              <i class="fa-solid fa-circle-info"></i> 過去の日付で履歴表示した際、設定された期間の名称で表示されます
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 組織イベントタブ ── -->
+      <div class="modal-tab-pane" id="mnm-pane-events">
+        <div class="mnm-events-layout">
+          <!-- 左：イベント履歴リスト -->
+          <div class="mnm-events-list-col">
+            <div class="mnm-corp-rel-header">
+              <span style="font-weight:700;font-size:12px;color:var(--c-text-2)">イベント履歴</span>
+              <button type="button" class="btn btn-primary btn-sm" id="btn-mnm-add-corp-event" style="margin-left:auto;">
+                <i class="fa-solid fa-plus"></i>追加
+              </button>
+            </div>
+            <div id="mnm-corp-events-list"></div>
+            <div class="f-hint" style="color:var(--c-text-3);margin-top:6px;padding:0 8px;">
+              <i class="fa-solid fa-circle-info"></i> 日付で自動ソートされ、タイムライン時点の状態が組織図に反映されます
+            </div>
+          </div>
+          <!-- 右：編集フォーム -->
+          <div class="mnm-events-form-col">
+            <div id="mnm-corp-event-empty" class="empty-state" style="height:100%; margin:0;">
+              <i class="fa-regular fa-hand-pointer"></i>
+              <p>イベントを選択するか、<br>追加ボタンを押してください</p>
+            </div>
+            <div id="mnm-corp-event-form" style="display:none; height:100%; flex-direction:column;">
+              <div class="cef-form-inner" style="flex:1; overflow-y:auto; margin-top:0;">
+                <div class="cef-form-title">
+                  <i class="fa-solid fa-pen-to-square"></i>イベント編集
+                </div>
+
+                <div class="cef-section-lbl">イベント種別<span class="req">*</span></div>
+                <div class="corp-rel-type-grid" id="mnm-cef-type-grid">
+                  <label class="corp-rel-card" data-val="none"><input type="radio" name="mnm-cef-type-r" value="none" checked><span class="corp-rel-card-icon"><i class="fa-solid fa-building"></i></span><span class="corp-rel-card-lbl">独立</span></label>
+                  <label class="corp-rel-card" data-val="subsidiary"><input type="radio" name="mnm-cef-type-r" value="subsidiary"><span class="corp-rel-card-icon" style="color:#6366F1"><i class="fa-solid fa-code-branch"></i></span><span class="corp-rel-card-lbl">子会社</span></label>
+                  <label class="corp-rel-card" data-val="full-subsidiary"><input type="radio" name="mnm-cef-type-r" value="full-subsidiary"><span class="corp-rel-card-icon" style="color:#8B5CF6"><i class="fa-solid fa-circle-nodes"></i></span><span class="corp-rel-card-lbl">完全子会社</span></label>
+                  <label class="corp-rel-card" data-val="holding"><input type="radio" name="mnm-cef-type-r" value="holding"><span class="corp-rel-card-icon" style="color:#0EA5E9"><i class="fa-solid fa-sitemap"></i></span><span class="corp-rel-card-lbl">持株傘下</span></label>
+                  <label class="corp-rel-card" data-val="merger-absorbed"><input type="radio" name="mnm-cef-type-r" value="merger-absorbed"><span class="corp-rel-card-icon" style="color:#F59E0B"><i class="fa-solid fa-arrow-right-to-bracket"></i></span><span class="corp-rel-card-lbl">吸収合併</span></label>
+                  <label class="corp-rel-card" data-val="acquisition"><input type="radio" name="mnm-cef-type-r" value="acquisition"><span class="corp-rel-card-icon" style="color:#10B981"><i class="fa-solid fa-hand-holding-dollar"></i></span><span class="corp-rel-card-lbl">M&amp;A・買収</span></label>
+                  <label class="corp-rel-card" data-val="spinoff"><input type="radio" name="mnm-cef-type-r" value="spinoff"><span class="corp-rel-card-icon" style="color:#EC4899"><i class="fa-solid fa-arrow-up-right-from-square"></i></span><span class="corp-rel-card-lbl">分社化</span></label>
+                  <label class="corp-rel-card" data-val="internalize"><input type="radio" name="mnm-cef-type-r" value="internalize"><span class="corp-rel-card-icon" style="color:#F97316"><i class="fa-solid fa-arrow-down-to-line"></i></span><span class="corp-rel-card-lbl">部門化</span></label>
+                  <label class="corp-rel-card" data-val="sold"><input type="radio" name="mnm-cef-type-r" value="sold"><span class="corp-rel-card-icon" style="color:#DC2626"><i class="fa-solid fa-money-bill-transfer"></i></span><span class="corp-rel-card-lbl">グループ売却</span></label>
+                  <label class="corp-rel-card" data-val="withdrawal"><input type="radio" name="mnm-cef-type-r" value="withdrawal"><span class="corp-rel-card-icon" style="color:#9333EA"><i class="fa-solid fa-right-from-bracket"></i></span><span class="corp-rel-card-lbl">脱退・除外</span></label>
+                </div>
+                <input type="hidden" id="mnm-cef-type" value="none">
+                <input type="hidden" id="mnm-cef-idx" value="-1">
+
+                <div id="mnm-cef-related-row" class="cef-related-row" style="display:none; margin-top:10px;">
+                  <div class="cef-section-lbl" id="mnm-cef-related-lbl"><i class="fa-solid fa-building" style="color:var(--c-text-3)"></i> 関連ノード<span class="req">*</span></div>
+                  <select class="finput" id="mnm-cef-related-select"><option value="">（選択してください）</option></select>
+                </div>
+
+                <div id="mnm-cef-related-node-row" class="cef-related-row" style="display:none; margin-top:10px;">
+                  <div class="cef-section-lbl"><i class="fa-solid fa-diagram-project" style="color:var(--c-text-3)"></i>配置先部門<span class="opt">（任意）</span></div>
+                  <select class="finput" id="mnm-cef-related-node-select"><option value="">（会社直下に配置）</option></select>
+                  <div class="f-hint"><i class="fa-solid fa-circle-info"></i>指定した部門の下にこの会社が表示されます。</div>
+                </div>
+
+                <div id="mnm-cef-date-row" style="margin-top:10px;">
+                  <div class="cef-section-lbl"><i class="fa-regular fa-calendar-range" style="color:var(--c-primary)"></i>有効期間</div>
+                  <div class="company-dates-row">
+                    <div class="company-date-field">
+                      <span class="company-date-lbl"><i class="fa-solid fa-calendar-plus"></i>開始日</span>
+                      <div class="hire-wrap" style="flex:1"><input type="text" class="finput flex-date-input" id="mnm-cef-start-date" placeholder="2015 / 2015-04"><button type="button" class="btn-cal" id="btn-mnm-cef-start-cal" title="カレンダーで選択"><i class="fa-solid fa-calendar-days"></i></button></div>
+                    </div>
+                    <span class="company-date-arrow"><i class="fa-solid fa-arrow-right"></i></span>
+                    <div class="company-date-field">
+                      <span class="company-date-lbl" style="color:var(--c-text-2)"><i class="fa-solid fa-calendar-check"></i>終了日</span>
+                      <div class="hire-wrap" style="flex:1"><input type="text" class="finput flex-date-input" id="mnm-cef-end-date" placeholder="未定の場合は空欄"><button type="button" class="btn-cal" id="btn-mnm-cef-end-cal" title="カレンダーで選択"><i class="fa-solid fa-calendar-days"></i></button></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style="margin-top:10px;">
+                  <div class="cef-section-lbl"><i class="fa-regular fa-note-sticky" style="color:var(--c-text-3)"></i>備考<span class="opt">（任意）</span></div>
+                  <input type="text" class="finput" id="mnm-cef-note" placeholder="例：売却先 LIXIL、持株比率51%">
+                </div>
+                <div class="f-hint cef-hint-footer"><i class="fa-solid fa-circle-info"></i> <b>グループ売却</b>＝外への売却 ／ <b>脱退・除外</b>＝持分解消など</div>
+
+                <div class="cef-form-btns" style="margin-top:auto;">
+                  <button type="button" class="btn btn-ghost btn-sm" id="btn-mnm-cef-cancel">キャンセル</button>
+                  <button type="button" class="btn btn-primary btn-sm" id="btn-mnm-cef-save"><i class="fa-solid fa-check"></i>保存</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" data-close="master-node-modal">キャンセル</button>
+      <button class="btn btn-primary" id="btn-mnm-save"><i class="fa-solid fa-check"></i>保存</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Level Config Modal -->
+<div class="overlay" id="level-cfg-modal">
+  <div class="modal modal-sm2">
+    <div class="modal-head">
+      <div class="modal-title"><i class="fa-solid fa-layer-group" style="color:var(--c-primary)"></i><span id="lcm-title">階層構造を設定</span></div>
+      <button class="modal-close" data-close="level-cfg-modal"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:var(--c-text-2);margin-bottom:12px;line-height:1.55">
+        <i class="fa-solid fa-circle-info" style="color:var(--c-primary);margin-right:4px"></i>
+        階層名とプレースホルダーを編集できます。最低1階層・最大5階層まで設定可能です。
+      </p>
+      <input type="hidden" id="lcm-type">
+      <input type="hidden" id="lcm-company-node-id" value="">
+      <p id="lcm-hint" style="font-size:12px;color:var(--c-primary);margin-bottom:10px;line-height:1.5;display:none"></p>
+
+      <!-- 会社マスタ専用：ルートノード種別名（「会社」「部署」「事業部」等） -->
+      <div id="lcm-root-label-row" style="display:none;margin-bottom:14px;padding:10px 12px;background:var(--c-surface-2);border-radius:8px;border:1px solid var(--c-border)">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+          <i class="fa-solid fa-tag" style="color:var(--c-primary);font-size:12px"></i>
+          <span style="font-size:12px;font-weight:600;color:var(--c-text-1)">ルートノードの種別名</span>
+          <span style="font-size:11px;color:var(--c-text-3);margin-left:auto">空欄 = 「会社」</span>
+        </div>
+        <input type="text" class="finput" id="lcm-root-label-input"
+          placeholder="例：会社 / 事業部 / 部署 / 工場 / 支社"
+          style="width:100%;font-size:13px">
+        <p style="font-size:11px;color:var(--c-text-3);margin-top:5px;line-height:1.5">
+          <i class="fa-solid fa-circle-info"></i>
+          分社化で「部署→会社」に昇格したり、逆に部門化で「会社→部署」に変更する場合もここで名称を変更できます。
+        </p>
+      </div>
+      <div class="lcm-col-labels">
+        <span style="width:22px;flex-shrink:0"></span>
+        <span class="lcm-lbl-label">階層名</span>
+        <span class="lcm-lbl-ph">入力例（プレースホルダー）</span>
+        <span class="lcm-lbl-del" style="width:48px;flex-shrink:0"></span>
+      </div>
+      <div class="lcm-level-list" id="lcm-level-list"></div>
+      <button type="button" class="btn-lcm-add" id="btn-lcm-add">
+        <i class="fa-solid fa-plus"></i>階層を追加
+      </button>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" data-close="level-cfg-modal">キャンセル</button>
+      <button class="btn btn-primary" id="btn-lcm-save"><i class="fa-solid fa-check"></i>保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Compare Modal -->
+<div class="overlay" id="compare-modal">
+  <div class="modal" style="max-width: 95vw; width: 1200px;">
+    <div class="modal-head">
+      <div class="modal-title"><i class="fa-solid fa-code-compare"></i><span>履歴比較</span></div>
+      <div class="master-ac-wrap" style="margin-left: 20px;">
+        <input type="text" id="compare-add-input" class="finput" placeholder="比較対象を追加..." autocomplete="off" style="width: 220px; padding: 4px 10px; font-size: 12.5px; height: 30px;">
+        <div id="compare-add-dd" class="master-ac-dropdown"></div>
+      </div>
+      <div style="margin-left:auto; margin-right:16px;">
+        <button type="button" class="btn btn-ghost btn-icon-sm" id="btn-compare-sort" title="昇順/降順を切替">
+          <i class="fa-solid fa-arrow-down-1-9" id="icon-compare-sort"></i>
+        </button>
+      </div>
+      <button class="modal-close" data-close="compare-modal"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" style="padding: 0; display: flex; flex-direction: row;">
+      <div id="compare-chart-wrap" style="width: 280px; flex-shrink: 0; border-right: 1px solid var(--c-border); padding: 16px 12px; display: none; background: var(--c-surface-2); flex-direction: column;">
+        <canvas id="compare-radar-chart"></canvas>
+      </div>
+      <div class="compare-grid" id="compare-grid" style="flex: 1; min-width: 0;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Context Menu -->
+<div id="list-context-menu" class="context-menu" style="display:none;">
+  <button class="ctx-btn" id="ctx-compare-direct"><i class="fa-solid fa-eye"></i>この従業員の履歴を表示</button>
+  <div class="ctx-sep"></div>
+  <button class="ctx-btn" id="ctx-compare-toggle"><i class="fa-solid fa-code-compare"></i>比較対象に追加/解除</button>
+  <button class="ctx-btn" id="ctx-compare-open" disabled><i class="fa-solid fa-layer-group"></i>履歴比較を表示 <span id="ctx-compare-cnt" class="badge" style="margin-left:auto; background:var(--c-primary); color:#fff">0</span></button>
+  <div class="ctx-sep"></div>
+  <button class="ctx-btn" id="ctx-compare-clear"><i class="fa-solid fa-eraser"></i>選択をクリア</button>
+</div>
+
+<!-- Heatmap Tooltip -->
+<div id="hm-tooltip"></div>
+
+<!-- Data Duplicate Modal -->
+<div class="overlay" id="data-dup-modal">
+  <div class="modal" style="max-width: 860px;">
+    <div class="modal-head">
+      <div class="modal-title"><i class="fa-solid fa-clone" style="color:var(--c-warn)"></i><span id="data-dup-modal-title">データの重複・表記ゆれ統合</span></div>
+      <button class="modal-close" data-close="data-dup-modal"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" style="padding-top:16px; display:flex; flex-direction:column;">
+      <p style="font-size:12.5px;color:var(--c-text-2);margin-bottom:12px;line-height:1.5;flex-shrink:0;">
+        システム内に登録されている重複・表記ゆれの可能性が高い項目を検出しました。<br>
+        各グループにおいて、<strong style="color:var(--c-success)">「残す（Primary）」</strong>項目を一つ選び、それ以外は統合（削除し参照を書き換え）します。
+      </p>
+      <div id="data-dup-list-container" style="display:flex; flex-direction:column; gap:14px; flex:1; overflow-y:auto; padding-right:4px;"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" data-close="data-dup-modal">キャンセル</button>
+      <button class="btn btn-primary" id="btn-exec-data-dup"><i class="fa-solid fa-wand-magic-sparkles"></i>選択した内容で統合を実行</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="js/core.js"></script>
+<script src="js/view-dashboard.js"></script>
+<script src="js/view-list.js"></script>
+<script src="js/view-dist.js"></script>
+<script src="js/employee.js"></script>
+<script src="js/master.js"></script>
+<script src="js/view-map.js"></script>
+
+
+</body></html>
