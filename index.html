@@ -3,6 +3,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1280">
 <title>従業員分布状況視覚化ツール</title>
+<link rel="icon" type="image/svg+xml" href="img/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Noto+Sans+JP:wght@400;500;700&amp;display=swap" rel="stylesheet">
@@ -25,6 +26,13 @@
     <div class="header-brand">
       <div class="header-brand-icon"><i class="fa-solid fa-people-group"></i></div>
       <span>従業員分布状況視覚化</span>
+      <div class="hdr-version-wrap" id="hdr-version-wrap">
+        <button type="button" class="hdr-version-badge" id="btn-hdr-version" title="バージョン情報・更新履歴">v<span id="hdr-version-num"></span></button>
+        <div class="hdr-version-panel" id="hdr-version-panel">
+          <div class="hvp-head"><i class="fa-solid fa-code-branch"></i>更新履歴</div>
+          <div class="hvp-list" id="hdr-version-list"></div>
+        </div>
+      </div>
     </div>
     <nav class="header-nav">
       <button class="nav-btn" data-view="dashboard"><i class="fa-solid fa-gauge-high"></i>ダッシュボード</button>
@@ -1853,6 +1861,7 @@
 
 <div id="toast"></div>
 
+<script src="js/version.js"></script>
 <script src="js/core.js"></script>
 <script src="js/view-dashboard.js"></script>
 <script src="js/view-list.js"></script>

@@ -4074,6 +4074,8 @@ function initEvents() {
   document.getElementById('te-date')?.addEventListener('input', updateTargetOrgSelect);
   document.getElementById('te-end-date')?.addEventListener('input', updateTargetOrgSelect);
 
+  initHeaderVersion();
+
   document.getElementById('btn-theme-toggle')?.addEventListener('click', () => {
     if (document.body.getAttribute('data-theme') === 'dark') {
       document.body.removeAttribute('data-theme');

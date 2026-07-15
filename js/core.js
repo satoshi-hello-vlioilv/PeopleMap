@@ -4426,6 +4426,40 @@ function updateHeaderCnt() {
   if (btnHelp) btnHelp.disabled = DB.employees.length > 0;
 }
 
+function initHeaderVersion() {
+  const numEl = document.getElementById('hdr-version-num');
+  if (numEl) numEl.textContent = APP_VERSION;
+
+  const btn   = document.getElementById('btn-hdr-version');
+  const panel = document.getElementById('hdr-version-panel');
+  const list  = document.getElementById('hdr-version-list');
+  if (!btn || !panel || !list) return;
+
+  list.innerHTML = APP_CHANGELOG.map(entry => `
+    <div class="hvp-item">
+      <div class="hvp-item-head">
+        <span class="hvp-item-ver">v${entry.version}</span>
+        <span class="hvp-item-date">${entry.date}</span>
+      </div>
+      <ul class="hvp-item-notes">
+        ${entry.notes.map(n => `<li>${n}</li>`).join('')}
+      </ul>
+    </div>
+  `).join('');
+
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const open = panel.classList.toggle('is-open');
+    btn.classList.toggle('is-open', open);
+  });
+  document.addEventListener('click', e => {
+    if (!btn.contains(e.target) && !panel.contains(e.target)) {
+      panel.classList.remove('is-open');
+      btn.classList.remove('is-open');
+    }
+  });
+}
+
 function updateBackupBadge() {
   const btn = document.getElementById('btn-export-json');
   if (!btn) return;
